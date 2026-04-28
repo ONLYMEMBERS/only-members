@@ -17,13 +17,11 @@ export function HeroSection({ allEvents = [] }: Props) {
   const [imageOpacity, setImageOpacity] = useState(1)
   const letters = t.heroTitle.split('')
 
-  // Find active event's hero image for current city
   const activeEvent = allEvents.find(
     (e) => e.city === city && ['active', 'soon'].includes(e.status) && e.hero_image
   )
   const targetImage = activeEvent?.hero_image ?? ''
 
-  // Crossfade hero image when city changes
   useEffect(() => {
     if (targetImage === heroImage) return
     if (!heroImage) {
@@ -38,7 +36,6 @@ export function HeroSection({ allEvents = [] }: Props) {
     return () => clearTimeout(timer)
   }, [targetImage]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reveal sequence
   useEffect(() => {
     const timer = setTimeout(() => setReveal(true), 50)
     return () => clearTimeout(timer)
@@ -95,13 +92,13 @@ export function HeroSection({ allEvents = [] }: Props) {
         />
       )}
 
-      {/* Gradient fallback / overlay */}
+      {/* Gradient fallback / overlay — FIX 5: más oscuro */}
       <div
         className="absolute inset-0"
         style={{
           background: heroImage
-            ? 'rgba(0,0,0,0.55)'
-            : 'linear-gradient(160deg, #1a1a2e 0%, #0d0d1a 60%, #1a120a 100%)',
+            ? 'rgba(0,0,0,0.65)'
+            : 'linear-gradient(160deg, #0d0d18 0%, #0a0a0f 60%, #130e05 100%)',
           zIndex: 1,
         }}
       />
@@ -112,7 +109,7 @@ export function HeroSection({ allEvents = [] }: Props) {
       </div>
 
       {/* Content */}
-      <div className="relative flex flex-col items-center text-center px-6" style={{ zIndex: 3 }}>
+      <div className="relative flex flex-col items-center text-center px-6" style={{ zIndex: 3, width: '100%' }}>
         {/* Label */}
         <span
           style={{
@@ -130,44 +127,55 @@ export function HeroSection({ allEvents = [] }: Props) {
           {t.heroLabel}
         </span>
 
-        {/* Title — letter by letter */}
+        {/* Title — FIX 4: shimmer gradient + FIX 8: word-break */}
         <h1
           aria-label={t.heroTitle}
           style={{
             fontFamily: 'var(--font-cormorant)',
             fontWeight: 300,
             fontSize: 'clamp(48px, 8vw, 96px)',
-            color: 'var(--bone)',
             letterSpacing: '0.18em',
             marginBottom: '24px',
             lineHeight: 1,
+            wordBreak: 'keep-all',
           }}
         >
-          {letters.map((char, i) => (
-            <span
-              key={i}
-              aria-hidden
-              style={{
-                display: 'inline-block',
-                opacity: lettersVisible[i] ? 1 : 0,
-                transform: lettersVisible[i] ? 'translateY(0)' : 'translateY(16px)',
-                transition: 'opacity 400ms ease, transform 400ms ease',
-                whiteSpace: char === ' ' ? 'pre' : 'normal',
-              }}
-            >
-              {char}
-            </span>
-          ))}
+          {/* Gradient shimmer wrapper */}
+          <span
+            style={{
+              background: 'linear-gradient(90deg, #F5F0E8 0%, #F5F0E8 35%, #C9A84C 50%, #F5F0E8 65%, #F5F0E8 100%)',
+              backgroundSize: '200% auto',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              animation: 'title-shimmer 4s linear infinite',
+            }}
+          >
+            {letters.map((char, i) => (
+              <span
+                key={i}
+                aria-hidden
+                style={{
+                  display: 'inline',
+                  opacity: lettersVisible[i] ? 1 : 0,
+                  transition: 'opacity 400ms ease',
+                  whiteSpace: char === ' ' ? 'pre' : 'normal',
+                }}
+              >
+                {char}
+              </span>
+            ))}
+          </span>
         </h1>
 
-        {/* Subtitle */}
+        {/* Subtitle — FIX 3: uppercase + clamp */}
         <p
           style={{
             fontFamily: 'var(--font-cormorant)',
             fontWeight: 300,
-            fontStyle: 'italic',
-            fontSize: '20px',
+            fontSize: 'clamp(11px, 2.5vw, 18px)',
             color: 'rgba(245,240,232,0.6)',
+            letterSpacing: '0.08em',
             opacity: reveal ? 1 : 0,
             transform: reveal ? 'translateY(0)' : 'translateY(8px)',
             transition: 'opacity 700ms ease 1200ms, transform 700ms ease 1200ms',
@@ -177,7 +185,7 @@ export function HeroSection({ allEvents = [] }: Props) {
           {t.heroSubtitle}
         </p>
 
-        {/* CTA */}
+        {/* CTA — FIX 6: min-width + centering */}
         <button
           onClick={scrollToEvents}
           className="relative overflow-hidden"
@@ -191,12 +199,14 @@ export function HeroSection({ allEvents = [] }: Props) {
             background: 'rgba(201,168,76,0.06)',
             padding: '14px 32px',
             borderRadius: '2px',
+            minWidth: '180px',
+            display: 'block',
+            margin: '0 auto',
             opacity: reveal ? 1 : 0,
             transform: reveal ? 'translateY(0)' : 'translateY(8px)',
             transition: 'opacity 700ms ease 1600ms, transform 700ms ease 1600ms',
           }}
         >
-          {/* Shimmer */}
           <span
             className="absolute inset-0 pointer-events-none"
             style={{

@@ -74,7 +74,7 @@ export default function DashboardPage() {
   const S = { fontFamily: 'var(--font-inter)', fontWeight: 300 }
 
   return (
-    <div style={{ padding: '40px 48px', maxWidth: '1200px' }}>
+    <div style={{ padding: 'clamp(24px, 4vw, 40px) clamp(16px, 5vw, 48px)', maxWidth: '1200px' }}>
       {/* Header */}
       <div style={{ marginBottom: '36px' }}>
         <h1 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '32px', color: '#F5F0E8' }}>
@@ -90,7 +90,10 @@ export default function DashboardPage() {
           ))}
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: '16px', marginBottom: '32px', flexWrap: 'wrap' }}>
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginBottom: '32px' }}
+        >
           <MetricCard label="Registros totales" value={metrics.total.toLocaleString()} />
           <MetricCard label="Eventos activos" value={metrics.activeEvents} />
           <MetricCard label="Países" value={metrics.countries} />
@@ -125,7 +128,7 @@ export default function DashboardPage() {
 
       {/* Active events table */}
       {events.length > 0 && (
-        <div style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', overflow: 'hidden' }}>
+        <div className="admin-table-scroll" style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', overflow: 'hidden' }}>
           <div style={{ padding: '20px 24px', borderBottom: '0.5px solid rgba(201,168,76,0.08)' }}>
             <p style={{ ...S, fontSize: '10px', letterSpacing: '0.14em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase' }}>
               Eventos activos

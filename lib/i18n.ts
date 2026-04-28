@@ -8,7 +8,7 @@ export const strings = {
   es: {
     heroLabel: 'RESILIO PRESENTA',
     heroTitle: 'ONLY MEMBERS',
-    heroSubtitle: 'Experiencias privadas para mentes extraordinarias',
+    heroSubtitle: 'EXPERIENCIAS PRIVADAS PARA PERSONAS EXTRAORDINARIAS',
     heroCta: 'DESCUBRIR',
     eventsTitle: 'EDICIONES ANTERIORES',
     requestAccess: 'SOLICITAR ACCESO',
@@ -73,7 +73,7 @@ export const strings = {
   en: {
     heroLabel: 'RESILIO PRESENTS',
     heroTitle: 'ONLY MEMBERS',
-    heroSubtitle: 'Private experiences for extraordinary minds',
+    heroSubtitle: 'PRIVATE EXPERIENCES FOR EXTRAORDINARY PEOPLE',
     heroCta: 'DISCOVER',
     eventsTitle: 'PAST EDITIONS',
     requestAccess: 'REQUEST ACCESS',

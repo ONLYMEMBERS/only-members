@@ -1,9 +1,5 @@
-import { Header } from '@/components/layout/Header'
-import { Footer } from '@/components/layout/Footer'
-import { HeroSection } from '@/components/landing/HeroSection'
-import { EventsSection } from '@/components/landing/EventsSection'
-import { ManifestoSection } from '@/components/landing/ManifestoSection'
 import { AdminFloatingButton } from '@/components/ui/AdminFloatingButton'
+import { LandingClient } from '@/components/landing/LandingClient'
 import { fetchCities, fetchAllEvents } from '@/lib/supabase'
 import { placeholderCities, events as placeholderEvents } from '@/lib/placeholder-data'
 
@@ -18,13 +14,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Header cities={cityNames} />
-      <main>
-        <HeroSection allEvents={events} />
-        <EventsSection allEvents={events} />
-        <ManifestoSection />
-      </main>
-      <Footer />
+      <LandingClient cities={cityNames} allEvents={events} />
       <AdminFloatingButton />
     </>
   )

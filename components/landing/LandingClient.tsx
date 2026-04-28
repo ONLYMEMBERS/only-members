@@ -6,6 +6,7 @@ import { Footer } from '@/components/layout/Footer'
 import { HeroSection } from './HeroSection'
 import { EventsSection } from './EventsSection'
 import { ManifestoSection } from './ManifestoSection'
+import { CitySelector } from './CitySelector'
 
 type Props = {
   cities: string[]
@@ -15,7 +16,8 @@ type Props = {
 export function LandingClient({ cities, allEvents }: Props) {
   return (
     <>
-      <Header cities={cities} />
+      <Header />
+      <CitySelector cities={cities} />
       <main>
         <HeroSection allEvents={allEvents} />
         <EventsSection allEvents={allEvents} />

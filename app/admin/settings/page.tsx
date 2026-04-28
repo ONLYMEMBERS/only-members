@@ -17,7 +17,7 @@ export default function SettingsPage() {
   const inputSt: React.CSSProperties = { ...S, fontSize: '13px', padding: '9px 12px', background: '#0A0A0F', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '4px', color: '#F5F0E8', outline: 'none', width: '100%', boxSizing: 'border-box' }
 
   return (
-    <div style={{ padding: '40px 48px', maxWidth: '900px' }}>
+    <div style={{ padding: 'clamp(24px, 4vw, 40px) clamp(16px, 5vw, 48px)', maxWidth: '900px' }}>
       <h1 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '32px', color: '#F5F0E8', marginBottom: '32px' }}>Configuración</h1>
 
       {/* Tab bar */}
@@ -45,6 +45,7 @@ function CitiesTab({ supabase, S, inputSt }: { supabase: any; S: any; inputSt: a
   const [slug, setSlug] = useState('')
   const [country, setCountry] = useState('')
   const [saving, setSaving] = useState(false)
+  const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
 
   useEffect(() => {
     supabase.from('cities').select('*').order('name').then(({ data }: any) => {
@@ -61,9 +62,22 @@ function CitiesTab({ supabase, S, inputSt }: { supabase: any; S: any; inputSt: a
   async function addCity() {
     if (!name || !slug || !country) return
     setSaving(true)
-    const { data } = await supabase.from('cities').insert({ name: name.trim(), slug: slug.trim(), country: country.trim(), active: true }).select().single()
-    if (data) setCities((p) => [...p, data])
-    setName(''); setSlug(''); setCountry('')
+    setFeedback(null)
+    try {
+      const res = await fetch('/api/admin/cities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, slug, country }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Error desconocido')
+      setCities((p) => [...p, json.city])
+      setName(''); setSlug(''); setCountry('')
+      setFeedback({ ok: true, msg: `"${json.city.name}" agregada correctamente.` })
+      setTimeout(() => setFeedback(null), 4000)
+    } catch (err: any) {
+      setFeedback({ ok: false, msg: err.message ?? 'Error al agregar ciudad.' })
+    }
     setSaving(false)
   }
 
@@ -76,6 +90,11 @@ function CitiesTab({ supabase, S, inputSt }: { supabase: any; S: any; inputSt: a
     <div>
       <div style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', padding: '24px', marginBottom: '24px' }}>
         <p style={{ ...S, fontSize: '10px', letterSpacing: '0.14em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase', marginBottom: '16px' }}>Nueva ciudad</p>
+        {feedback && (
+          <div style={{ ...S, fontSize: '11px', padding: '8px 12px', borderRadius: '4px', marginBottom: '12px', background: feedback.ok ? 'rgba(72,187,120,0.08)' : 'rgba(229,62,62,0.08)', border: `0.5px solid rgba(${feedback.ok ? '72,187,120' : '229,62,62'},0.25)`, color: feedback.ok ? 'rgba(72,187,120,0.9)' : 'rgba(229,62,62,0.9)' }}>
+            {feedback.msg}
+          </div>
+        )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '10px', alignItems: 'end' }}>
           <div>
             <label style={{ ...S, fontSize: '10px', color: 'rgba(201,168,76,0.5)', display: 'block', marginBottom: '4px' }}>NOMBRE</label>
@@ -96,7 +115,7 @@ function CitiesTab({ supabase, S, inputSt }: { supabase: any; S: any; inputSt: a
         </div>
       </div>
 
-      <div style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div className="admin-table-scroll" style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: '32px', textAlign: 'center', ...S, fontSize: '13px', color: 'rgba(245,240,232,0.3)' }}>Cargando...</div>
         ) : (
@@ -168,7 +187,7 @@ function UsersTab({ S, inputSt }: { supabase?: unknown; S: any; inputSt: any }) 
         </div>
       </div>
 
-      <div style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', overflow: 'hidden' }}>
+      <div className="admin-table-scroll" style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: '32px', textAlign: 'center', ...S, fontSize: '13px', color: 'rgba(245,240,232,0.3)' }}>Cargando...</div>
         ) : (

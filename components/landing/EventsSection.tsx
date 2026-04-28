@@ -59,7 +59,7 @@ export function EventsSection({ allEvents }: Props) {
     <section
       id="events"
       style={{
-        padding: '100px 40px 80px',
+        padding: 'clamp(60px, 8vw, 100px) clamp(16px, 5vw, 40px) 80px',
         background: 'var(--bg-primary)',
         position: 'relative',
         opacity,
@@ -92,7 +92,7 @@ export function EventsSection({ allEvents }: Props) {
         {active.length > 0 && (
           <div
             className="grid gap-6"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))' }}
           >
             {active.map((event, i) => (
               <EventCard
@@ -124,7 +124,7 @@ export function EventsSection({ allEvents }: Props) {
             </div>
             <div
               className="grid gap-5"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))' }}
             >
               {past.map((event, i) => (
                 <PastEventCard key={event.id} event={event} staggerIndex={i} />

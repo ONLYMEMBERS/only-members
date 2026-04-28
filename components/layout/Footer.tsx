@@ -18,14 +18,17 @@ export function Footer() {
   return (
     <footer
       ref={ref}
-      className="flex flex-col items-center gap-5"
       style={{
         background: 'transparent',
         borderTop: '0.5px solid rgba(201,168,76,0.12)',
-        padding: '32px 48px',
+        padding: '32px 24px',
         opacity: visible ? 1 : 0,
         transform: visible ? 'translateY(0)' : 'translateY(12px)',
         transition: 'opacity 600ms ease, transform 600ms ease',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '20px',
       }}
     >
       <span
@@ -40,19 +43,21 @@ export function Footer() {
         RESILIO®
       </span>
 
-      <div className="flex items-center" style={{ gap: '12px' }}>
-        {/* Instagram */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <a
           href="https://instagram.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center rounded-full"
           style={{
             width: '36px',
             height: '36px',
             border: '0.5px solid rgba(201,168,76,0.5)',
             background: 'rgba(201,168,76,0.05)',
             transition: 'background 200ms ease',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.15)' }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.05)' }}
@@ -64,18 +69,20 @@ export function Footer() {
           </svg>
         </a>
 
-        {/* WhatsApp */}
         <a
           href="https://wa.me"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-center rounded-full"
           style={{
             width: '36px',
             height: '36px',
             border: '0.5px solid rgba(201,168,76,0.5)',
             background: 'rgba(201,168,76,0.05)',
             transition: 'background 200ms ease',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.15)' }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.05)' }}
