@@ -75,6 +75,8 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
+  const [uploadStatus, setUploadStatus] = useState<Record<string, { state: 'uploading' | 'success' | 'error'; fileName: string }>>({})
+
   const router = useRouter()
   const supabase = createClient()
 
@@ -112,24 +114,26 @@ export function EventForm({ eventId }: { eventId?: string }) {
   }, [eventId])
 
   async function uploadImage(file: File, folder: string): Promise<string> {
-    const path = `events/${folder}/${Date.now()}-${file.name}`
-    const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true })
-    if (error) throw error
-    const { data: { publicUrl } } = supabase.storage.from('media').getPublicUrl(path)
-    return publicUrl
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('folder', folder)
+    const res = await fetch('/api/admin/upload', { method: 'POST', body: fd })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error ?? 'Upload failed')
+    return json.url as string
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, field: 'hero_image' | 'cover_image') {
     const file = e.target.files?.[0]
     if (!file) return
-    setUploading(field)
+    setUploadStatus((p) => ({ ...p, [field]: { state: 'uploading', fileName: file.name } }))
     try {
       const url = await uploadImage(file, eventId ?? 'new')
       set(field)(url)
+      setUploadStatus((p) => ({ ...p, [field]: { state: 'success', fileName: file.name } }))
     } catch (err) {
       console.error('upload error:', err)
-    } finally {
-      setUploading(null)
+      setUploadStatus((p) => ({ ...p, [field]: { state: 'error', fileName: file.name } }))
     }
   }
 
@@ -269,22 +273,65 @@ export function EventForm({ eventId }: { eventId?: string }) {
         </div>
       )
       case 2: return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          {(['hero_image', 'cover_image'] as const).map((field) => (
-            <div key={field}>
-              <label style={labelStyle}>{field === 'hero_image' ? 'Hero (16:9)' : 'Portada (4:5)'}</label>
-              {form[field] && (
-                <img src={form[field]} alt="" style={{ width: '200px', aspectRatio: field === 'hero_image' ? '16/9' : '4/5', objectFit: 'cover', borderRadius: '4px', marginBottom: '12px', display: 'block', border: '0.5px solid rgba(201,168,76,0.2)' }} />
-              )}
-              <label style={{ ...btnStyle, display: 'inline-block', cursor: 'pointer' }}>
-                {uploading === field ? 'Subiendo...' : '+ Subir imagen'}
-                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e, field)} />
-              </label>
-              {form[field] && (
-                <input style={{ ...inputStyle, marginTop: '8px', fontSize: '11px', color: 'rgba(245,240,232,0.4)' }} value={form[field]} onChange={(e) => set(field)(e.target.value)} placeholder="URL de imagen" />
-              )}
-            </div>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '36px' }}>
+          {(['hero_image', 'cover_image'] as const).map((field) => {
+            const isHero = field === 'hero_image'
+            const status = uploadStatus[field]
+            const hasImage = !!form[field]
+            return (
+              <div key={field}>
+                <label style={labelStyle}>{isHero ? 'Hero (16:9)' : 'Portada (4:5)'}</label>
+
+                {/* Preview */}
+                {hasImage && (
+                  <div style={{ marginBottom: '12px' }}>
+                    <img
+                      src={form[field]}
+                      alt=""
+                      style={{
+                        display: 'block',
+                        width: isHero ? '100%' : '200px',
+                        aspectRatio: isHero ? '16/9' : '4/5',
+                        objectFit: 'cover',
+                        borderRadius: '8px',
+                        border: '0.5px solid rgba(201,168,76,0.2)',
+                        marginBottom: '10px',
+                      }}
+                    />
+                    <label style={{ ...btnStyle, display: 'inline-block', cursor: 'pointer', fontSize: '9px', padding: '6px 12px', opacity: status?.state === 'uploading' ? 0.5 : 1 }}>
+                      Reemplazar
+                      <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e, field)} />
+                    </label>
+                  </div>
+                )}
+
+                {/* Upload button (no image yet) */}
+                {!hasImage && (
+                  <label style={{ ...btnStyle, display: 'inline-block', cursor: 'pointer', opacity: status?.state === 'uploading' ? 0.5 : 1 }}>
+                    {status?.state === 'uploading' ? 'Subiendo...' : '+ Subir imagen'}
+                    <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e, field)} />
+                  </label>
+                )}
+
+                {/* Status feedback */}
+                {status && (
+                  <p style={{
+                    fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '11px', marginTop: '8px',
+                    color: status.state === 'success' ? '#C9A84C' : status.state === 'error' ? 'rgba(229,62,62,0.85)' : 'rgba(245,240,232,0.45)',
+                  }}>
+                    {status.state === 'uploading' && `Subiendo ${status.fileName}...`}
+                    {status.state === 'success' && `✓ ${status.fileName}`}
+                    {status.state === 'error' && '✗ Error al subir'}
+                  </p>
+                )}
+
+                {/* Editable URL */}
+                {hasImage && (
+                  <input style={{ ...inputStyle, marginTop: '8px', fontSize: '11px', color: 'rgba(245,240,232,0.35)' }} value={form[field]} onChange={(e) => set(field)(e.target.value)} placeholder="URL de imagen" />
+                )}
+              </div>
+            )
+          })}
         </div>
       )
       case 3: return (
@@ -308,7 +355,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
             {form.dress_code_images.length < 6 && (
               <label style={{ ...btnStyle, display: 'inline-block', cursor: 'pointer' }}>
                 {uploading === 'dci' ? 'Subiendo...' : '+ Agregar imágenes'}
-                <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handleDressCodeImageUpload} />
+                <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" multiple style={{ display: 'none' }} onChange={handleDressCodeImageUpload} />
               </label>
             )}
           </div>
