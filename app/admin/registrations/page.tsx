@@ -25,19 +25,15 @@ export default function RegistrationsPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    let q = supabase
-      .from('registrations')
-      .select('*, events(name)', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+    const params = new URLSearchParams({ page: String(page) })
+    if (filterEvent) params.set('event', filterEvent)
+    if (filterStatus.length) params.set('status', filterStatus.join(','))
+    if (search) params.set('search', search)
 
-    if (filterEvent) q = q.eq('event_id', filterEvent)
-    if (filterStatus.length) q = q.in('status', filterStatus)
-    if (search) q = q.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`)
-
-    const { data, count } = await q
-    setRegs((data ?? []) as Registration[])
-    setTotal(count ?? 0)
+    const res = await fetch(`/api/admin/registrations?${params}`)
+    const json = await res.json()
+    setRegs((json.data ?? []) as Registration[])
+    setTotal(json.count ?? 0)
     setLoading(false)
   }, [page, filterEvent, filterStatus, search])
 
@@ -111,6 +107,13 @@ export default function RegistrationsPage() {
               </tr>
             </thead>
             <tbody>
+              {regs.length === 0 && (
+                <tr>
+                  <td colSpan={7} style={{ ...S, padding: '48px 16px', textAlign: 'center', fontSize: '13px', color: 'rgba(245,240,232,0.25)' }}>
+                    No hay registros aún
+                  </td>
+                </tr>
+              )}
               {regs.map((r) => {
                 const st = STATUS_STYLES[r.status] ?? STATUS_STYLES.pending
                 return (
