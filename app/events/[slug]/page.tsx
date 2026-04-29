@@ -5,6 +5,9 @@ import { events as placeholderEvents } from '@/lib/placeholder-data'
 import { Event } from '@/lib/types'
 import { EventPageClient } from '@/components/landing/EventPageClient'
 
+export const dynamicParams = true
+export const revalidate = 60
+
 interface PageProps {
   params: { slug: string }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Event } from '@/lib/placeholder-data'
 
 interface PastEventCardProps {
@@ -26,6 +27,7 @@ export function PastEventCard({ event, staggerIndex }: PastEventCardProps) {
     : 'linear-gradient(160deg, #0d0d18 0%, #080810 60%, #120d06 100%)'
 
   return (
+    <Link href={`/events/${event.slug}`} style={{ display: 'block', textDecoration: 'none' }}>
     <div
       ref={cardRef}
       style={{
@@ -105,5 +107,6 @@ export function PastEventCard({ event, staggerIndex }: PastEventCardProps) {
         </div>
       </div>
     </div>
+    </Link>
   )
 }

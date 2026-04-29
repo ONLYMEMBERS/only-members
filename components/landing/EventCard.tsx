@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Event } from '@/lib/types'
 import { useI18n } from '@/lib/i18n'
 
@@ -73,7 +74,8 @@ export function EventCard({ event, staggerIndex, onRequestAccess }: EventCardPro
     return () => observer.disconnect()
   }, [])
 
-  const coverBg = event.cover_image
+  const [imgError, setImgError] = useState(false)
+  const coverBg = (event.cover_image && !imgError)
     ? `url(${event.cover_image})`
     : 'linear-gradient(160deg, #1a1a2e 0%, #0d0d1a 60%, #1a120a 100%)'
 
@@ -96,12 +98,17 @@ export function EventCard({ event, staggerIndex, onRequestAccess }: EventCardPro
         background: 'var(--bg-secondary)',
       }}
     >
-      {/* Photo area 4:5 */}
+      {/* Photo area 4:5 — Link to event page */}
+      <Link href={`/events/${event.slug}`} style={{ display: 'block', textDecoration: 'none' }}>
       <div className="relative" style={{ aspectRatio: '4/5', background: '#0d0d1a' }}>
         <div
           className="absolute inset-0"
           style={{ background: coverBg, backgroundSize: 'cover', backgroundPosition: 'center' }}
         />
+        {/* Hidden img to detect load error */}
+        {event.cover_image && !imgError && (
+          <img src={event.cover_image} alt="" style={{ display: 'none' }} onError={() => setImgError(true)} />
+        )}
         <GeometricDetail />
 
         {/* Bottom gradient overlay */}
@@ -154,6 +161,7 @@ export function EventCard({ event, staggerIndex, onRequestAccess }: EventCardPro
           </p>
         </div>
       </div>
+      </Link>
 
       {/* Lower panel */}
       <div
