@@ -127,17 +127,19 @@ export function HeroSection({ allEvents = [] }: Props) {
           {t.heroLabel}
         </span>
 
-        {/* Title — FIX 4: shimmer gradient + FIX 8: word-break */}
+        {/* Title */}
         <h1
           aria-label={t.heroTitle}
           style={{
             fontFamily: 'var(--font-cormorant)',
             fontWeight: 300,
-            fontSize: 'clamp(48px, 8vw, 96px)',
+            fontSize: 'clamp(32px, 7vw, 80px)',
             letterSpacing: '0.18em',
             marginBottom: '24px',
             lineHeight: 1,
             wordBreak: 'keep-all',
+            maxWidth: '90vw',
+            margin: '0 auto 24px',
           }}
         >
           {/* Gradient shimmer wrapper */}
@@ -195,13 +197,14 @@ export function HeroSection({ allEvents = [] }: Props) {
             fontSize: '11px',
             letterSpacing: '0.2em',
             color: 'var(--gold)',
-            border: '0.5px solid var(--gold)',
-            background: 'rgba(201,168,76,0.06)',
+            border: '0.5px solid rgba(201,168,76,0.6)',
+            background: 'rgba(201,168,76,0.08)',
             padding: '14px 32px',
             borderRadius: '2px',
             minWidth: '180px',
             display: 'block',
             margin: '0 auto',
+            boxSizing: 'border-box',
             opacity: reveal ? 1 : 0,
             transform: reveal ? 'translateY(0)' : 'translateY(8px)',
             transition: 'opacity 700ms ease 1600ms, transform 700ms ease 1600ms',

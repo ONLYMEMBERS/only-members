@@ -23,7 +23,7 @@ export function CitySelector({ cities }: Props) {
       aria-label="Seleccionar ciudad"
       style={{
         position: 'fixed',
-        top: '64px',
+        top: '90px',
         left: '50%',
         zIndex: 100,
         display: 'flex',

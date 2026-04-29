@@ -48,7 +48,9 @@ export function ManifestoSection() {
       ref={sectionRef}
       style={{
         padding: '120px 24px',
-        background: 'var(--bg-secondary)',
+        background: 'rgba(0,0,0,0.45)',
+        backdropFilter: 'blur(2px)',
+        WebkitBackdropFilter: 'blur(2px)',
         borderTop: '0.5px solid rgba(201,168,76,0.08)',
         borderBottom: '0.5px solid rgba(201,168,76,0.08)',
       }}
