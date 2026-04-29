@@ -21,19 +21,44 @@ export async function fetchCities(): Promise<City[] | null> {
     .eq('active', true)
     .order('name')
   if (error) { console.error('fetchCities:', error.message); return null }
-  return data as City[]
+  return (data ?? []) as City[]
 }
 
 export async function fetchAllEvents(): Promise<Event[] | null> {
-  if (!isConfigured()) return null
+  if (!isConfigured()) {
+    console.log('fetchAllEvents: Supabase not configured, using placeholder')
+    return null
+  }
   const supabase = createPublicClient()
-  const { data, error } = await supabase
+
+  // Fetch active/soon events (FIX 1: ordered ASC for upcoming events)
+  const { data: activeData, error: activeError } = await supabase
     .from('events')
-    .select(`*, cities(name, country, slug), speakers(id, name, role, bio, photo, link, visible, order_index), partners(id, name, logo, link, order_index)`)
-    .neq('status', 'draft')
+    .select('*, cities(name, country, slug), speakers(id, name, role, bio, photo, link, visible, order_index), partners(id, name, logo, link, order_index)')
+    .in('status', ['active', 'soon'])
+    .order('date_start', { ascending: true })
+
+  if (activeError) {
+    console.error('fetchAllEvents (active):', activeError.message)
+    return null
+  }
+
+  // Fetch past events (closed/archived) ordered DESC, limit 6 per city handled client-side
+  const { data: pastData, error: pastError } = await supabase
+    .from('events')
+    .select('*, cities(name, country, slug), speakers(id, name, role, bio, photo, link, visible, order_index), partners(id, name, logo, link, order_index)')
+    .in('status', ['closed', 'archived'])
     .order('date_start', { ascending: false })
-  if (error) { console.error('fetchAllEvents:', error.message); return null }
-  return (data as DbEvent[]).map(mapDbEvent)
+
+  if (pastError) {
+    console.error('fetchAllEvents (past):', pastError.message)
+    // Don't fail entirely — just return active events
+  }
+
+  const combined = [...(activeData ?? []), ...(pastData ?? [])]
+  console.log(`fetchAllEvents: ${activeData?.length ?? 0} active, ${pastData?.length ?? 0} past`)
+
+  return combined.map((e) => mapDbEvent(e as DbEvent))
 }
 
 export async function fetchEventBySlug(slug: string): Promise<Event | null> {
@@ -41,7 +66,7 @@ export async function fetchEventBySlug(slug: string): Promise<Event | null> {
   const supabase = createPublicClient()
   const { data, error } = await supabase
     .from('events')
-    .select(`*, cities(name, country, slug), speakers(id, name, role, bio, photo, link, visible, order_index), partners(id, name, logo, link, order_index)`)
+    .select('*, cities(name, country, slug), speakers(id, name, role, bio, photo, link, visible, order_index), partners(id, name, logo, link, order_index)')
     .eq('slug', slug)
     .neq('status', 'draft')
     .single()
