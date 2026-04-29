@@ -73,6 +73,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const [cities, setCities] = useState<{ id: string; name: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [uploading, setUploading] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -146,12 +147,13 @@ export function EventForm({ eventId }: { eventId?: string }) {
 
   async function save(publish = false) {
     setSaving(true)
+    setSaveError(null)
     try {
       const payload = {
         name: form.name, subtitle: form.subtitle || null, subtitle_en: form.subtitle_en || null,
         description_es: form.description_es || null, description_en: form.description_en || null,
         tagline: form.tagline || null, slug: form.slug, city_id: form.city_id || null,
-        country: form.country, date_start: form.date_start || null, date_end: form.date_end || null,
+        country: form.country || null, date_start: form.date_start || null, date_end: form.date_end || null,
         timezone: form.timezone, location_name: form.location_name || null, location_address: form.location_address || null,
         location_lat: form.location_lat ? parseFloat(form.location_lat) : null,
         location_lng: form.location_lng ? parseFloat(form.location_lng) : null,
@@ -168,28 +170,28 @@ export function EventForm({ eventId }: { eventId?: string }) {
         og_description: form.og_description || null, internal_notes: form.internal_notes || null,
       }
 
-      let id = eventId
-      if (eventId) {
-        await supabase.from('events').update(payload).eq('id', eventId)
-      } else {
-        const { data } = await supabase.from('events').insert(payload).select('id').single()
-        id = data?.id
-      }
+      const method = eventId ? 'PATCH' : 'POST'
+      const body = JSON.stringify({
+        ...(eventId ? { id: eventId } : {}),
+        payload,
+        speakers: speakers.length ? speakers : [],
+        partners: partners.length ? partners : [],
+      })
 
-      // Speakers
-      if (id && speakers.length) {
-        await supabase.from('speakers').delete().eq('event_id', id)
-        await supabase.from('speakers').insert(speakers.map((s, i) => ({ ...s, event_id: id, id: undefined, order_index: i })))
-      }
-      // Partners
-      if (id && partners.length) {
-        await supabase.from('partners').delete().eq('event_id', id)
-        await supabase.from('partners').insert(partners.map((p, i) => ({ ...p, event_id: id, id: undefined, order_index: i })))
-      }
+      const res = await fetch('/api/admin/events', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Error desconocido')
 
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-      if (!eventId && id) router.push(`/admin/events/${id}/edit`)
+      setTimeout(() => setSaved(false), 3000)
+      if (!eventId && json.id) router.push(`/admin/events/${json.id}/edit`)
+    } catch (err: any) {
+      console.error('EventForm save:', err)
+      setSaveError(err.message ?? 'Error al guardar. Verificar consola.')
     } finally {
       setSaving(false)
     }
@@ -443,7 +445,13 @@ export function EventForm({ eventId }: { eventId?: string }) {
       <div style={{ flex: 1, padding: '32px', overflow: 'auto' }}>{renderTab()}</div>
 
       {/* Footer */}
-      <div style={{ padding: '20px 32px', borderTop: '0.5px solid rgba(201,168,76,0.1)', display: 'flex', gap: '12px', alignItems: 'center' }}>
+      <div style={{ padding: '20px 32px', borderTop: '0.5px solid rgba(201,168,76,0.1)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {saveError && (
+          <div style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', padding: '8px 12px', borderRadius: '4px', background: 'rgba(229,62,62,0.08)', border: '0.5px solid rgba(229,62,62,0.25)', color: 'rgba(229,62,62,0.9)' }}>
+            ✕ {saveError}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
         <button onClick={() => save(false)} disabled={saving || !form.name || !form.slug}
           style={{ fontFamily: 'var(--font-inter)', fontWeight: 500, fontSize: '10px', letterSpacing: '0.12em', padding: '10px 20px', background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.35)', borderRadius: '4px', color: '#C9A84C', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
           {saving ? 'GUARDANDO...' : saved ? 'GUARDADO ✓' : 'GUARDAR BORRADOR'}
@@ -455,6 +463,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         <button onClick={() => router.push('/admin/events')} style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '11px', color: 'rgba(245,240,232,0.35)', background: 'transparent', border: 'none', cursor: 'pointer', marginLeft: 'auto' }}>
           Volver
         </button>
+        </div>
       </div>
     </div>
   )
