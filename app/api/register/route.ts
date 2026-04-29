@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
-import { sendEmail } from '@/lib/resend'
-import React from 'react'
-import { ConfirmationEmail } from '@/emails/ConfirmationEmail'
+import { sendConfirmationEmail } from '@/lib/email-sender'
 
 export async function POST(req: NextRequest) {
+  console.log('Env check:', {
+    hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+    hasServiceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasResend: !!process.env.RESEND_API_KEY,
+    hasFromEmail: !!process.env.RESEND_FROM_EMAIL,
+  })
+
   try {
     const body = await req.json()
     const {
@@ -58,7 +63,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (existing) {
-      return NextResponse.json({ error: 'Ya existe una solicitud con este email para este evento.' }, { status: 409 })
+      return NextResponse.json({ success: false, message: 'Ya tenés una solicitud para este evento.' })
     }
 
     // Insert registration
@@ -95,28 +100,15 @@ export async function POST(req: NextRequest) {
       try { await admin.rpc('increment_referral', { code: ref_code }) } catch {}
     }
 
-    // Log email and send
+    // Send confirmation email — non-blocking, never breaks the registration
     try {
-      await admin.from('email_logs').insert({ registration_id: registration.id, type: 'confirmation' })
-    } catch {}
-
-    const cityName = (event as any).cities?.name ?? ''
-    const countryName = (event as any).cities?.country ?? ''
-
-    await sendEmail({
-      to: email,
-      subject: language === 'en'
-        ? `Your request for ${event.name} has been received`
-        : `Tu solicitud para ${event.name} fue recibida`,
-      template: React.createElement(ConfirmationEmail, {
-        firstName: first_name,
-        eventName: event.name,
-        city: cityName,
-        country: countryName,
-        dateStart: event.date_start,
-        language,
-      }),
-    })
+      await sendConfirmationEmail(
+        { id: registration.id, first_name, email, language },
+        event as any,
+      )
+    } catch (e) {
+      console.error('Email confirmation failed:', e)
+    }
 
     return NextResponse.json({ success: true })
   } catch (err) {

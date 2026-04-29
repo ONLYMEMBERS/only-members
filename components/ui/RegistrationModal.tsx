@@ -187,9 +187,14 @@ export function RegistrationModal({ isOpen, onClose, event }: Props) {
         body: JSON.stringify({ ...form, event_id: event?.id, language: lang, ref_code }),
       })
       const data = await res.json()
-      if (!res.ok || data.error) {
+      if (!res.ok) {
         setStatus('error')
         setErrorMsg(data.error ?? t.errorGeneral)
+        return
+      }
+      if (data.success === false) {
+        setStatus('error')
+        setErrorMsg(data.message ?? data.error ?? t.errorGeneral)
         return
       }
       setStatus('success')

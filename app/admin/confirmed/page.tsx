@@ -12,6 +12,8 @@ export default function ConfirmedPage() {
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [qrReg, setQrReg] = useState<Registration | null>(null)
+  const [resending, setResending] = useState(false)
+  const [resendResult, setResendResult] = useState<string>('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -21,10 +23,12 @@ export default function ConfirmedPage() {
   useEffect(() => {
     if (!eventId) return
     setLoading(true)
-    supabase.from('registrations').select('*').eq('event_id', eventId).in('status', ['confirmed', 'invited', 'declined', 'purchased', 'vip']).then(({ data }) => {
-      setRegs((data ?? []) as Registration[])
-      setLoading(false)
-    })
+    fetch(`/api/admin/registrations?event=${eventId}&status=confirmed,invited,declined,purchased,vip&all=true`)
+      .then((r) => r.json())
+      .then(({ data }) => {
+        setRegs((data ?? []) as Registration[])
+        setLoading(false)
+      })
   }, [eventId])
 
   const confirmed = regs.filter((r) => ['confirmed', 'purchased', 'vip'].includes(r.status))
@@ -33,6 +37,26 @@ export default function ConfirmedPage() {
   const noResponse = regs.filter((r) => r.status === 'invited').length
 
   const currentEvent = events.find((e) => e.id === eventId)
+
+  async function resendToNoResponse() {
+    const noResponseRegs = regs.filter((r) => r.status === 'invited')
+    if (!noResponseRegs.length) return
+    if (!confirm(`¿Reenviar invitación a ${noResponseRegs.length} personas sin respuesta?`)) return
+    setResending(true)
+    setResendResult('')
+    const res = await fetch('/api/send-invitation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        registration_ids: noResponseRegs.map((r) => r.id),
+        event_id: eventId,
+        type: 'rsvp_reminder',
+      }),
+    })
+    const data = await res.json()
+    setResendResult(`Reenviado: ${data.sent ?? 0} · Errores: ${data.errors ?? 0}`)
+    setResending(false)
+  }
 
   function copyList() {
     const lines = [
@@ -56,10 +80,21 @@ export default function ConfirmedPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
         <h1 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '32px', color: '#F5F0E8' }}>Confirmados</h1>
         {eventId && (
-          <button onClick={copyList}
-            style={{ ...S, fontSize: '10px', letterSpacing: '0.12em', padding: '8px 16px', background: copied ? 'rgba(72,187,120,0.1)' : 'rgba(201,168,76,0.06)', border: `0.5px solid rgba(${copied ? '72,187,120' : '201,168,76'},0.3)`, borderRadius: '4px', color: copied ? 'rgba(72,187,120,0.9)' : '#C9A84C', cursor: 'pointer', textTransform: 'uppercase', transition: 'all 200ms' }}>
-            {copied ? 'COPIADO ✓' : 'COPIAR LISTA'}
-          </button>
+          <div style={{ display: 'flex', gap: '8px', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {noResponse > 0 && (
+                <button onClick={resendToNoResponse} disabled={resending}
+                  style={{ ...S, fontSize: '10px', letterSpacing: '0.12em', padding: '8px 16px', background: 'rgba(99,179,237,0.06)', border: '0.5px solid rgba(99,179,237,0.25)', borderRadius: '4px', color: 'rgba(99,179,237,0.8)', cursor: resending ? 'default' : 'pointer', textTransform: 'uppercase', opacity: resending ? 0.5 : 1 }}>
+                  {resending ? 'ENVIANDO...' : `REENVIAR A ${noResponse} SIN RESPUESTA`}
+                </button>
+              )}
+              <button onClick={copyList}
+                style={{ ...S, fontSize: '10px', letterSpacing: '0.12em', padding: '8px 16px', background: copied ? 'rgba(72,187,120,0.1)' : 'rgba(201,168,76,0.06)', border: `0.5px solid rgba(${copied ? '72,187,120' : '201,168,76'},0.3)`, borderRadius: '4px', color: copied ? 'rgba(72,187,120,0.9)' : '#C9A84C', cursor: 'pointer', textTransform: 'uppercase', transition: 'all 200ms' }}>
+                {copied ? 'COPIADO ✓' : 'COPIAR LISTA'}
+              </button>
+            </div>
+            {resendResult && <p style={{ ...S, fontSize: '11px', color: 'rgba(72,187,120,0.8)' }}>{resendResult}</p>}
+          </div>
         )}
       </div>
 

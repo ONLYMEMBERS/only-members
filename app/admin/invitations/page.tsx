@@ -17,7 +17,7 @@ export default function InvitationsPage() {
   const [eventId, setEventId] = useState('')
   const [regs, setRegs] = useState<Registration[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [filterStatus, setFilterStatus] = useState('')
+  const [filterStatus, setFilterStatus] = useState('pending,imported')
   const [subjectEs, setSubjectEs] = useState('Estás invitado/a a {{evento}}')
   const [subjectEn, setSubjectEn] = useState('You are invited to {{evento}}')
   const [bodyEs, setBodyEs] = useState('Hola {{nombre}},\n\nHas sido seleccionado/a para asistir a {{evento}} en {{ciudad}}.\n\nResilio')
@@ -29,17 +29,29 @@ export default function InvitationsPage() {
   const [loadingRegs, setLoadingRegs] = useState(false)
   const supabase = createClient()
 
+  function fetchTemplates() {
+    fetch('/api/admin/email-templates')
+      .then((r) => r.json())
+      .then(({ data }) => setTemplates(data ?? []))
+  }
+
+  function fetchRegs(evId: string, status: string) {
+    if (!evId) { setRegs([]); return }
+    setLoadingRegs(true)
+    const params = new URLSearchParams({ event: evId, all: 'true' })
+    if (status) params.set('status', status)
+    fetch(`/api/admin/registrations?${params}`)
+      .then((r) => r.json())
+      .then(({ data }) => { setRegs((data ?? []) as Registration[]); setLoadingRegs(false) })
+  }
+
   useEffect(() => {
     supabase.from('events').select('id, name, date_start, cities(name)').order('created_at', { ascending: false }).then(({ data }) => setEvents(data ?? []))
-    supabase.from('email_templates').select('*').then(({ data }) => setTemplates(data ?? []))
+    fetchTemplates()
   }, [])
 
   useEffect(() => {
-    if (!eventId) { setRegs([]); return }
-    setLoadingRegs(true)
-    let q = supabase.from('registrations').select('*, events(name)').eq('event_id', eventId)
-    if (filterStatus) q = q.eq('status', filterStatus)
-    q.then(({ data }) => { setRegs((data ?? []) as Registration[]); setLoadingRegs(false) })
+    fetchRegs(eventId, filterStatus)
   }, [eventId, filterStatus])
 
   const currentEvent = useMemo(() => events.find((e) => e.id === eventId), [events, eventId])
@@ -54,22 +66,25 @@ export default function InvitationsPage() {
     const res = await fetch('/api/send-invitation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ registration_ids: ids, event_id: eventId, subject_es: subjectEs, subject_en: subjectEn, body_es: bodyEs, body_en: bodyEn }),
+      body: JSON.stringify({ registration_ids: ids, event_id: eventId, subject_es: subjectEs, subject_en: subjectEn, body_es: bodyEs, body_en: bodyEn, type: 'invitation' }),
     })
     const data = await res.json()
     setSendResult({ sent: data.sent ?? 0, errors: data.errors ?? 0 })
     setSending(false)
-    // Refresh regs
     setSelected(new Set())
     setStep(0)
-    supabase.from('registrations').select('*, events(name)').eq('event_id', eventId).then(({ data: d }) => setRegs((d ?? []) as Registration[]))
+    fetchRegs(eventId, filterStatus)
   }
 
   async function saveTemplate() {
     if (!templateName) return
-    await supabase.from('email_templates').insert({ name: templateName, type: 'invitation', subject_es: subjectEs, subject_en: subjectEn, body_es: bodyEs, body_en: bodyEn })
+    await fetch('/api/admin/email-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: templateName, type: 'invitation', subject_es: subjectEs, subject_en: subjectEn, body_es: bodyEs, body_en: bodyEn }),
+    })
     setTemplateName('')
-    supabase.from('email_templates').select('*').then(({ data }) => setTemplates(data ?? []))
+    fetchTemplates()
   }
 
   function loadTemplate(tpl: any) {
@@ -130,9 +145,10 @@ export default function InvitationsPage() {
               {/* Filters */}
               <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'center' }}>
                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-                  style={{ ...S, fontSize: '12px', padding: '7px 12px', background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '4px', color: filterStatus ? '#F5F0E8' : 'rgba(245,240,232,0.35)', outline: 'none' }}>
+                  style={{ ...S, fontSize: '12px', padding: '7px 12px', background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '4px', color: '#F5F0E8', outline: 'none' }}>
                   <option value="">Todos los estados</option>
-                  {['pending', 'invited', 'confirmed', 'declined', 'waitlist', 'vip'].map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
+                  <option value="pending,imported">Sin invitar (Pendiente + Importado)</option>
+                  {['pending', 'imported', 'invited', 'confirmed', 'declined', 'waitlist', 'vip'].map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
                 </select>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                   <input type="checkbox"

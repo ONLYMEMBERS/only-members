@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
     const admin = createAdminClient()
     const { searchParams } = new URL(req.url)
     const page = parseInt(searchParams.get('page') ?? '0')
+    const all = searchParams.get('all') === 'true'
     const filterEvent = searchParams.get('event') ?? ''
     const filterStatus = searchParams.get('status') ?? ''
     const search = searchParams.get('search') ?? ''
@@ -16,7 +17,10 @@ export async function GET(req: NextRequest) {
       .from('registrations')
       .select('*, events(name)', { count: 'exact' })
       .order('created_at', { ascending: false })
-      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+
+    if (!all) {
+      q = q.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+    }
 
     if (filterEvent) q = q.eq('event_id', filterEvent)
     if (filterStatus) q = q.in('status', filterStatus.split(','))

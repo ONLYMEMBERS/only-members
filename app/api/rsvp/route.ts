@@ -17,13 +17,21 @@ export async function GET(req: NextRequest) {
     }
 
     const admin = createAdminClient()
-    const { error } = await admin
+    const { data: updated, error } = await admin
       .from('registrations')
-      .update({ status: response as 'confirmed' | 'declined' })
+      .update({
+        status: response as 'confirmed' | 'declined',
+        updated_at: new Date().toISOString(),
+      })
       .eq('rsvp_token', token)
+      .select('id')
+      .maybeSingle()
 
     if (error) {
       console.error('rsvp update:', error.message)
+      return NextResponse.redirect(`${siteUrl}/rsvp/invalid`)
+    }
+    if (!updated) {
       return NextResponse.redirect(`${siteUrl}/rsvp/invalid`)
     }
 
