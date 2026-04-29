@@ -60,7 +60,7 @@ export function EventsSection({ allEvents }: Props) {
       id="events"
       style={{
         padding: 'clamp(60px, 8vw, 100px) clamp(16px, 5vw, 40px) 80px',
-        background: 'transparent',
+        background: '#07080f',
         position: 'relative',
         opacity,
         transition: 'opacity 400ms ease',

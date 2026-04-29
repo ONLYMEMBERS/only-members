@@ -5,6 +5,7 @@
 :root {
   --bg-primary: #0A0A0F;
   --bg-secondary: #0F0F1A;
+  --bg-deep: #07080f;
   --gold: #C9A84C;
   --gold-subtle: rgba(201, 168, 76, 0.15);
   --bone: #F5F0E8;
@@ -27,8 +28,7 @@ html {
 }
 
 body {
-  background: linear-gradient(160deg, #0d0d18 0%, #0a0a0f 40%, #120d08 100%);
-  background-attachment: fixed;
+  background: var(--bg-deep);
   color: var(--bone);
   overflow-x: hidden;
 }

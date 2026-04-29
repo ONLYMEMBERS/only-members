@@ -48,9 +48,7 @@ export function ManifestoSection() {
       ref={sectionRef}
       style={{
         padding: '120px 24px',
-        background: 'rgba(0,0,0,0.45)',
-        backdropFilter: 'blur(2px)',
-        WebkitBackdropFilter: 'blur(2px)',
+        background: '#07080f',
         borderTop: '0.5px solid rgba(201,168,76,0.08)',
         borderBottom: '0.5px solid rgba(201,168,76,0.08)',
       }}
@@ -75,13 +73,14 @@ export function ManifestoSection() {
             key={i}
             ref={(el) => { lineRefs.current[i] = el }}
             style={{
-              fontFamily: 'var(--font-cormorant)',
-              fontWeight: i === 0 ? 300 : 400,
-              fontStyle: 'italic',
-              fontSize: 'clamp(18px, 2.8vw, 26px)',
-              color: 'rgba(245,240,232,0.9)',
-              lineHeight: 2,
-              letterSpacing: '0.02em',
+              fontFamily: 'var(--font-inter)',
+              fontWeight: 600,
+              fontStyle: 'normal',
+              fontSize: 'clamp(13px, 2vw, 17px)',
+              color: 'rgba(245,240,232,0.85)',
+              lineHeight: 1.9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
               marginBottom: i < t.manifesto.length - 1 ? '1.6em' : 0,
               opacity: visibleLines[i] ? 1 : 0,
               transform: visibleLines[i] ? 'translateY(0)' : 'translateY(16px)',

@@ -132,7 +132,7 @@ export function Sidebar() {
     <>
       {/* Mobile hamburger */}
       <button
-        className="fixed top-3 left-3 z-[200] md:hidden"
+        className="fixed top-4 right-4 z-50 md:hidden"
         style={{
           width: '44px', height: '44px',
           background: 'rgba(10,10,15,0.9)',

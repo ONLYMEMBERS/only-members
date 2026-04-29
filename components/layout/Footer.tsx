@@ -19,7 +19,7 @@ export function Footer() {
     <footer
       ref={ref}
       style={{
-        background: 'transparent',
+        background: '#07080f',
         borderTop: '0.5px solid rgba(201,168,76,0.12)',
         padding: '32px 24px',
         opacity: visible ? 1 : 0,
