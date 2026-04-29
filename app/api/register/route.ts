@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Insert registration
+    console.log('Attempting insert:', { email, event_id })
     const { data: registration, error: insertError } = await admin
       .from('registrations')
       .insert({
@@ -82,9 +83,11 @@ export async function POST(req: NextRequest) {
       .select('id, rsvp_token')
       .single()
 
+    console.log('Insert result:', { data: registration?.id, error: insertError?.message })
+
     if (insertError) {
       console.error('insert registration:', insertError.message)
-      return NextResponse.json({ error: 'Error al guardar la solicitud.' }, { status: 500 })
+      return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
     // Increment referral code stats
