@@ -18,6 +18,7 @@ export function RegistrationDrawer({ reg, onClose, onUpdate }: Props) {
   const [newTag, setNewTag] = useState('')
   const [emailLogs, setEmailLogs] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -32,48 +33,79 @@ export function RegistrationDrawer({ reg, onClose, onUpdate }: Props) {
       .then(({ data }) => setEmailLogs(data ?? []))
   }, [reg?.id])
 
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2500)
+  }
+
+  async function patch(id: string, body: Record<string, unknown>) {
+    const res = await fetch(`/api/admin/registrations/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const json = await res.json()
+    if (!res.ok) throw new Error(json.error ?? 'Error')
+    return json.data as Registration
+  }
+
   async function saveNotes() {
     if (!reg) return
     setSaving(true)
-    await supabase.from('registrations').update({ internal_notes: notes }).eq('id', reg.id)
-    onUpdate({ ...reg, internal_notes: notes })
+    try {
+      const updated = await patch(reg.id, { internal_notes: notes })
+      onUpdate({ ...reg, ...updated })
+    } catch {}
     setSaving(false)
   }
 
   async function setStatus(status: string) {
     if (!reg) return
-    await supabase.from('registrations').update({ status }).eq('id', reg.id)
-    onUpdate({ ...reg, status: status as any })
+    try {
+      const updated = await patch(reg.id, { status })
+      onUpdate({ ...reg, ...updated })
+      showToast('Estado actualizado')
+    } catch {}
   }
 
   async function setVip(is_vip: boolean) {
     if (!reg) return
-    await supabase.from('registrations').update({ is_vip, status: is_vip ? 'vip' : 'confirmed' }).eq('id', reg.id)
-    onUpdate({ ...reg, is_vip, status: is_vip ? 'vip' : 'confirmed' })
+    try {
+      const updated = await patch(reg.id, { is_vip, status: is_vip ? 'vip' : 'confirmed' })
+      onUpdate({ ...reg, ...updated })
+      showToast('VIP actualizado')
+    } catch {}
   }
 
   async function addBlacklist() {
     if (!reg || !confirm('¿Agregar a blacklist?')) return
-    await supabase.from('blacklist').insert({ email: reg.email, dni: reg.dni, reason: 'Admin action' })
-    await supabase.from('registrations').update({ status: 'declined' }).eq('id', reg.id)
-    onUpdate({ ...reg, status: 'declined' })
+    try {
+      await supabase.from('blacklist').insert({ email: reg.email, dni: reg.dni, reason: 'Admin action' })
+      const updated = await patch(reg.id, { status: 'declined' })
+      onUpdate({ ...reg, ...updated })
+      showToast('Agregado a blacklist')
+    } catch {}
   }
 
   async function addTag() {
     if (!reg || !newTag.trim()) return
     const updated = [...tags, newTag.trim()]
-    await supabase.from('registrations').update({ tags: updated }).eq('id', reg.id)
-    setTags(updated)
-    setNewTag('')
-    onUpdate({ ...reg, tags: updated })
+    try {
+      await patch(reg.id, { tags: updated })
+      setTags(updated)
+      setNewTag('')
+      onUpdate({ ...reg, tags: updated })
+    } catch {}
   }
 
   async function removeTag(t: string) {
     if (!reg) return
     const updated = tags.filter((x) => x !== t)
-    await supabase.from('registrations').update({ tags: updated }).eq('id', reg.id)
-    setTags(updated)
-    onUpdate({ ...reg, tags: updated })
+    try {
+      await patch(reg.id, { tags: updated })
+      setTags(updated)
+      onUpdate({ ...reg, tags: updated })
+    } catch {}
   }
 
   const isOpen = !!reg
@@ -81,7 +113,6 @@ export function RegistrationDrawer({ reg, onClose, onUpdate }: Props) {
 
   return (
     <>
-      {/* Backdrop */}
       {isOpen && (
         <div
           className="fixed inset-0 z-[400]"
@@ -90,7 +121,19 @@ export function RegistrationDrawer({ reg, onClose, onUpdate }: Props) {
         />
       )}
 
-      {/* Drawer */}
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: '32px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 600, background: 'rgba(201,168,76,0.15)', border: '0.5px solid rgba(201,168,76,0.4)',
+          borderRadius: '6px', padding: '10px 20px',
+          fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px',
+          color: '#C9A84C', letterSpacing: '0.08em', pointerEvents: 'none',
+        }}>
+          {toast}
+        </div>
+      )}
+
       <div
         style={{
           position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 500,
@@ -107,7 +150,6 @@ export function RegistrationDrawer({ reg, onClose, onUpdate }: Props) {
           <>
             {/* Header */}
             <div style={{ padding: '24px', borderBottom: '0.5px solid rgba(201,168,76,0.1)', display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
-              {/* Avatar */}
               <div style={{
                 width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
                 background: 'rgba(201,168,76,0.12)', border: '0.5px solid rgba(201,168,76,0.3)',

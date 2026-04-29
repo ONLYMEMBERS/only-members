@@ -4,6 +4,7 @@ import { fetchEventBySlug, fetchEventSlugs } from '@/lib/supabase'
 import { events as placeholderEvents } from '@/lib/placeholder-data'
 import { Event } from '@/lib/types'
 import { EventPageClient } from '@/components/landing/EventPageClient'
+import { CoverImageReveal } from '@/components/landing/CoverImageReveal'
 
 export const dynamicParams = true
 export const revalidate = 60
@@ -229,6 +230,11 @@ export default async function EventPage({ params }: PageProps) {
           )}
         </div>
       </section>
+
+      {/* Cover image 4:5 */}
+      {event.cover_image && (
+        <CoverImageReveal src={event.cover_image} alt={event.name} />
+      )}
 
       {/* Client: description, dress code, countdown/pre-register, access button */}
       <EventPageClient event={event} />
