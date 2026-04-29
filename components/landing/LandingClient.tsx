@@ -19,7 +19,7 @@ export function LandingClient({ cities, allEvents }: Props) {
       <Header />
       <CitySelector cities={cities} />
       <main>
-        <HeroSection allEvents={allEvents} />
+        <HeroSection />
         <EventsSection allEvents={allEvents} />
         <ManifestoSection />
       </main>

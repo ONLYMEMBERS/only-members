@@ -4,11 +4,7 @@ import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { ParticleCanvas } from './ParticleCanvas'
 
-interface Props {
-  allEvents?: never[]
-}
-
-export function HeroSection({ allEvents: _ = [] }: Props) {
+export function HeroSection() {
   const { t } = useI18n()
   const [reveal, setReveal] = useState(false)
   const [lettersVisible, setLettersVisible] = useState<boolean[]>([])
