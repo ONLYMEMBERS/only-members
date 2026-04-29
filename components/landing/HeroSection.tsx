@@ -3,38 +3,16 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '@/lib/i18n'
 import { ParticleCanvas } from './ParticleCanvas'
-import type { Event } from '@/lib/types'
 
 interface Props {
-  allEvents?: Event[]
+  allEvents?: never[]
 }
 
-export function HeroSection({ allEvents = [] }: Props) {
-  const { t, city } = useI18n()
+export function HeroSection({ allEvents: _ = [] }: Props) {
+  const { t } = useI18n()
   const [reveal, setReveal] = useState(false)
   const [lettersVisible, setLettersVisible] = useState<boolean[]>([])
-  const [heroImage, setHeroImage] = useState('')
-  const [imageOpacity, setImageOpacity] = useState(1)
   const letters = t.heroTitle.split('')
-
-  const activeEvent = allEvents.find(
-    (e) => e.city === city && ['active', 'soon'].includes(e.status) && e.hero_image
-  )
-  const targetImage = activeEvent?.hero_image ?? ''
-
-  useEffect(() => {
-    if (targetImage === heroImage) return
-    if (!heroImage) {
-      setHeroImage(targetImage)
-      return
-    }
-    setImageOpacity(0)
-    const timer = setTimeout(() => {
-      setHeroImage(targetImage)
-      setImageOpacity(1)
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [targetImage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const timer = setTimeout(() => setReveal(true), 50)
@@ -73,32 +51,14 @@ export function HeroSection({ allEvents = [] }: Props) {
       style={{
         height: '100vh',
         overflow: 'hidden',
-        background: '#0a0a0f',
+        background: 'linear-gradient(160deg, #0d0d18 0%, #0a0a0f 40%, #120d08 100%)',
       }}
     >
-      {/* Hero image */}
-      {heroImage && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundImage: `url(${heroImage})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            opacity: imageOpacity,
-            transition: 'opacity 600ms ease',
-            zIndex: 0,
-          }}
-        />
-      )}
-
-      {/* Gradient fallback / overlay — FIX 5: más oscuro */}
+      {/* Gradient overlay */}
       <div
         className="absolute inset-0"
         style={{
-          background: heroImage
-            ? 'rgba(0,0,0,0.65)'
-            : 'linear-gradient(160deg, #0d0d18 0%, #0a0a0f 60%, #130e05 100%)',
+          background: 'linear-gradient(160deg, #0d0d18 0%, #0a0a0f 40%, #120d08 100%)',
           zIndex: 1,
         }}
       />

@@ -73,13 +73,13 @@ export function ManifestoSection() {
             key={i}
             ref={(el) => { lineRefs.current[i] = el }}
             style={{
-              fontFamily: 'var(--font-cormorant)',
+              fontFamily: "'Inter', sans-serif",
               fontWeight: 300,
-              fontStyle: 'italic',
-              fontSize: 'clamp(15px, 2.2vw, 22px)',
-              color: 'rgba(245,240,232,0.88)',
+              fontStyle: 'normal',
+              fontSize: 'clamp(12px, 1.8vw, 16px)',
+              color: 'rgba(245,240,232,0.8)',
               lineHeight: 2,
-              letterSpacing: '0.04em',
+              letterSpacing: '0.06em',
               textTransform: 'none',
               marginBottom: i < t.manifesto.length - 1 ? '1.6em' : 0,
               opacity: visibleLines[i] ? 1 : 0,
