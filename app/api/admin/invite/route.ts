@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = createAdminClient()
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://onlymembers.life'
     const { error } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${siteUrl}/admin`,
     })

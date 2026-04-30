@@ -5,7 +5,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const token = searchParams.get('token')
   const response = searchParams.get('response')
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://onlymembers.life'
 
   if (!token || !['confirmed', 'declined'].includes(response ?? '')) {
     return NextResponse.redirect(`${siteUrl}/rsvp/invalid`)

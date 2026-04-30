@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase-browser'
 import { SupportModal } from '@/components/ui/SupportModal'
 import { useI18n } from '@/lib/i18n'
 
@@ -9,6 +11,12 @@ export function Footer() {
   const ref = useRef<HTMLElement>(null)
   const [visible, setVisible] = useState(false)
   const [supportOpen, setSupportOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getSession().then(({ data }) => { setIsAdmin(!!data.session) })
+  }, [])
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -48,6 +56,23 @@ export function Footer() {
         >
           RESILIO®
         </span>
+        {isAdmin && (
+          <Link href="/admin/system"
+            style={{
+              fontFamily: 'var(--font-inter)',
+              fontWeight: 500,
+              fontSize: '11px',
+              letterSpacing: '0.15em',
+              color: 'rgba(201,168,76,0.4)',
+              textDecoration: 'none',
+              transition: 'color 200ms',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(201,168,76,0.8)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(201,168,76,0.4)' }}
+          >
+            STATUS
+          </Link>
+        )}
         <button
           onClick={() => setSupportOpen(true)}
           style={{
@@ -71,7 +96,7 @@ export function Footer() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <a
-          href="https://instagram.com"
+          href={process.env.NEXT_PUBLIC_INSTAGRAM_URL ?? 'https://instagram.com'}
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -96,7 +121,7 @@ export function Footer() {
         </a>
 
         <a
-          href="https://wa.me"
+          href={process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ? `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER}` : 'https://wa.me'}
           target="_blank"
           rel="noopener noreferrer"
           style={{

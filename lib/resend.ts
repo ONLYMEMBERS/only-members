@@ -8,7 +8,7 @@ export function getResend() {
   return new Resend(key)
 }
 
-export const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? 'noreply@onlymembers.com'
+export const FROM_EMAIL = process.env.RESEND_FROM_EMAIL ?? 'noreply@onlymembers.life'
 
 export async function sendEmail({
   to,

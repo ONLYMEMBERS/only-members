@@ -13,7 +13,7 @@ interface Props {
   customBody?: string
 }
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://onlymembers.com'
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://onlymembers.life'
 
 export function InvitationEmail({ firstName, eventName, city, dateStart, rsvpToken, language = 'es', customBody }: Props) {
   const es = language !== 'en'
