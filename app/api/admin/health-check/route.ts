@@ -70,11 +70,11 @@ export async function GET() {
   try {
     const token = process.env.MP_ACCESS_TOKEN
     if (!token) throw new Error('MP_ACCESS_TOKEN not set')
-    const res = await fetch('https://api.mercadopago.com/v1/account', {
+    const res = await fetch('https://api.mercadopago.com/users/me', {
       headers: { Authorization: `Bearer ${token}` },
     })
     const json = await res.json()
-    if (!res.ok) throw new Error(json?.message ?? 'MP API error')
+    if (!res.ok) throw new Error(json?.message ?? `MP API error (${res.status})`)
     checks.mercadopago = {
       status: 'ok',
       account_email: json?.email ?? null,
