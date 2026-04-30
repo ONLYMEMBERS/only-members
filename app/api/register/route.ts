@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       const { data: linkData } = await admin.auth.admin.generateLink({
         type: 'magiclink',
         email: email.toLowerCase().trim(),
-        options: { redirectTo: `${siteUrl}/cuenta` },
+        options: { redirectTo: `${siteUrl}/auth/callback` },
       })
       magicLink = (linkData as any)?.properties?.action_link ?? undefined
     } catch {}

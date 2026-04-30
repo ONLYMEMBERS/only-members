@@ -4,6 +4,7 @@ import './globals.css'
 import { AppProviders } from '@/components/ui/AppProviders'
 import UserFloatingButton from '@/components/ui/UserFloatingButton'
 import { AuthErrorHandler } from '@/components/ui/AuthErrorHandler'
+import AuthHandler from '@/components/ui/AuthHandler'
 
 const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className={`${cormorant.variable} ${inter.variable}`}>
       <body className="antialiased">
         <AppProviders>
+          <AuthHandler />
           {children}
           <UserFloatingButton />
           <AuthErrorHandler />

@@ -9,6 +9,7 @@ export function createClient() {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        flowType: 'implicit',
         storageKey: 'only-members-auth',
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       },

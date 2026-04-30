@@ -1,64 +1,67 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 
-const supabase = createClient()
-
 export default function UserFloatingButton() {
-  const [show, setShow] = useState(false)
+  const [hasSession, setHasSession] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setShow(!!data.session)
+    const supabase = createClient()
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setHasSession(!!session)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      setShow(!!session)
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setHasSession(!!session)
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
-  if (!show) return null
+  if (!hasSession) return null
 
   return (
-    <Link
-      href="/cuenta"
+    <button
+      onClick={() => router.push('/cuenta')}
       title="Mi cuenta"
-      className="bottom-24 md:bottom-8"
       style={{
         position: 'fixed',
+        bottom: '32px',
         left: '32px',
         width: '44px',
         height: '44px',
         borderRadius: '50%',
-        background: 'rgba(10,10,15,0.9)',
-        border: '0.5px solid rgba(201,168,76,0.4)',
+        border: '0.5px solid rgba(201,168,76,0.5)',
+        background: 'rgba(10,10,15,0.92)',
+        cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 9000,
+        zIndex: 40,
         backdropFilter: 'blur(8px)',
-        textDecoration: 'none',
-        transition: 'border-color 200ms, background 200ms, transform 200ms',
+        transition: 'all 200ms ease',
+        boxShadow: '0 0 20px rgba(201,168,76,0.1)',
       }}
       onMouseEnter={(e) => {
-        const el = e.currentTarget as HTMLElement
+        const el = e.currentTarget as HTMLButtonElement
         el.style.background = 'rgba(201,168,76,0.12)'
-        el.style.borderColor = 'rgba(201,168,76,0.7)'
         el.style.transform = 'scale(1.05)'
       }}
       onMouseLeave={(e) => {
-        const el = e.currentTarget as HTMLElement
-        el.style.background = 'rgba(10,10,15,0.9)'
-        el.style.borderColor = 'rgba(201,168,76,0.4)'
+        const el = e.currentTarget as HTMLButtonElement
+        el.style.background = 'rgba(10,10,15,0.92)'
         el.style.transform = 'scale(1)'
       }}
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-        <circle cx="12" cy="7" r="4"/>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+        stroke="#C9A84C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
       </svg>
-    </Link>
+    </button>
   )
 }

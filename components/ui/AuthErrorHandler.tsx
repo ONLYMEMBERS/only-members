@@ -12,7 +12,12 @@ export function AuthErrorHandler() {
 
   useEffect(() => {
     const hash = window.location.hash
+    const params = new URLSearchParams(window.location.search)
+
     if (hash.includes('error=access_denied') || hash.includes('error_code=otp_expired')) {
+      window.history.replaceState(null, '', window.location.pathname)
+      setShow(true)
+    } else if (params.get('auth_error') === 'expired') {
       window.history.replaceState(null, '', window.location.pathname)
       setShow(true)
     }
