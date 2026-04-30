@@ -1,3 +1,7 @@
+// SUPABASE DASHBOARD REQUIRED CONFIG (Authentication > URL Configuration):
+// - Site URL: https://onlymembers.life  (no www, no trailing slash)
+// - Redirect URLs: https://onlymembers.life/cuenta, https://onlymembers.life/**
+// - OTP Expiry (Authentication > Email): 86400 (24 hours)
 import { createClient } from '@supabase/supabase-js'
 import { DbEvent, City, mapDbEvent, Event } from './types'
 

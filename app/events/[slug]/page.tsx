@@ -101,7 +101,7 @@ export default async function EventPage({ params }: PageProps) {
       {/* Hero */}
       <section
         style={{
-          height: '100vh', position: 'relative',
+          height: 'clamp(60vh, 80vh, 100vh)', position: 'relative',
           display: 'flex', flexDirection: 'column',
           alignItems: 'flex-start', justifyContent: 'flex-end',
           overflow: 'hidden',
@@ -137,9 +137,9 @@ export default async function EventPage({ params }: PageProps) {
         <div style={{ position: 'absolute', bottom: '8%', right: '-2%', zIndex: 1, pointerEvents: 'none', overflow: 'hidden', whiteSpace: 'nowrap' }}>
           <span style={{
             fontFamily: 'var(--font-cormorant)', fontWeight: 300,
-            fontSize: 'clamp(40px, 15vw, 180px)',
+            fontSize: 'clamp(32px, 12vw, 160px)',
             letterSpacing: '0.05em',
-            color: 'rgba(245,240,232,0.06)',
+            color: 'rgba(245,240,232,0.05)',
             display: 'block',
             wordBreak: 'keep-all',
             whiteSpace: 'nowrap',

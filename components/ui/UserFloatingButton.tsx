@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-browser'
 
-export function UserFloatingButton() {
+const supabase = createClient()
+
+export default function UserFloatingButton() {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    const supabase = createClient()
     supabase.auth.getSession().then(({ data }) => {
       setShow(!!data.session)
     })
