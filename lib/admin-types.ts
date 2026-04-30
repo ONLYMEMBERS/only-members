@@ -48,6 +48,56 @@ export type ReferralCode = {
   registrations: number
   conversions: number
   created_at: string
+  discount_type: 'percentage' | 'fixed' | null
+  discount_value: number | null
+  max_uses: number | null
+  uses_count: number
+  active: boolean
+}
+
+export type Payment = {
+  id: string
+  registration_id: string | null
+  event_id: string | null
+  payment_account_id: string | null
+  mp_preference_id: string | null
+  mp_payment_id: string | null
+  amount: number
+  currency: string
+  discount_amount: number
+  discount_code: string | null
+  status: 'pending' | 'approved' | 'rejected' | 'expired'
+  fee_amount: number
+  net_amount: number | null
+  mp_status: string | null
+  mp_status_detail: string | null
+  paid_at: string | null
+  expires_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type PaymentAccount = {
+  id: string
+  name: string
+  mp_access_token: string | null
+  mp_public_key: string | null
+  mp_user_id: string | null
+  city_id: string | null
+  fee_percentage: number | null
+  is_main_account: boolean
+  active: boolean
+  created_at: string
+}
+
+export type SupportMessage = {
+  id: string
+  name: string
+  email: string
+  message: string
+  event_related: string | null
+  status: string
+  created_at: string
 }
 
 export type AdminEvent = {

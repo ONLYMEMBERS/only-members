@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 
-const TABS = ['Básico', 'Lugar', 'Imágenes', 'Dress Code', 'Speakers', 'Partners', 'Acceso', 'Visibilidad', 'OG / SEO', 'Notas']
+const TABS = ['Básico', 'Lugar', 'Imágenes', 'Dress Code', 'Speakers', 'Partners', 'Acceso', 'Visibilidad', 'OG / SEO', 'Notas', 'Pago MP']
 const TIMEZONES = [
   'America/Buenos_Aires', 'America/Santiago', 'America/Lima', 'America/Bogota',
   'America/Mexico_City', 'America/New_York', 'America/Los_Angeles',
   'Europe/Madrid', 'Europe/London', 'Europe/Paris',
 ]
-const CURRENCIES = ['USD', 'EUR', 'ARS', 'COP', 'MXN', 'CLP']
+const CURRENCIES = ['USD', 'EUR', 'ARS', 'COP', 'MXN', 'CLP', 'PEN', 'BRL', 'UYU']
 const STATUSES = ['draft', 'soon', 'active', 'closed', 'archived']
 
 function toSlug(str: string) {
@@ -28,6 +28,7 @@ type FormData = {
   dress_code_images: string[]; capacity: string; price: string; currency: string; purchase_link: string
   purchase_link_expires_at: string; status: string; publish_at: string; close_registrations_at: string
   progress_value: number; og_title: string; og_description: string; internal_notes: string
+  payment_account_id: string; payments_enabled: boolean
 }
 
 const INIT: FormData = {
@@ -38,6 +39,7 @@ const INIT: FormData = {
   capacity: '', price: '', currency: 'USD', purchase_link: '', purchase_link_expires_at: '',
   status: 'draft', publish_at: '', close_registrations_at: '', progress_value: 0,
   og_title: '', og_description: '', internal_notes: '',
+  payment_account_id: '', payments_enabled: false,
 }
 
 const inputStyle: React.CSSProperties = {
@@ -74,6 +76,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [paymentAccounts, setPaymentAccounts] = useState<{ id: string; name: string; is_main_account: boolean }[]>([])
   const [uploading, setUploading] = useState<string | null>(null)
   const [uploadStatus, setUploadStatus] = useState<Record<string, { state: 'uploading' | 'success' | 'error'; fileName: string }>>({})
 
@@ -85,6 +88,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
 
   useEffect(() => {
     supabase.from('cities').select('id, name').eq('active', true).then(({ data }) => setCities(data ?? []))
+    fetch('/api/admin/payment-accounts').then((r) => r.json()).then((d) => setPaymentAccounts(d.accounts ?? [])).catch(() => {})
 
     if (eventId) {
       supabase.from('events').select('*').eq('id', eventId).single().then(({ data }) => {
@@ -106,6 +110,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           close_registrations_at: data.close_registrations_at?.slice(0, 16) ?? '',
           progress_value: data.progress_value ?? 0, og_title: data.og_title ?? '',
           og_description: data.og_description ?? '', internal_notes: data.internal_notes ?? '',
+          payment_account_id: data.payment_account_id ?? '', payments_enabled: data.payments_enabled ?? false,
         })
       })
       supabase.from('speakers').select('*').eq('event_id', eventId).order('order_index').then(({ data }) => setSpeakers(data ?? []))
@@ -172,6 +177,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
         publish_at: form.publish_at || null, close_registrations_at: form.close_registrations_at || null,
         progress_value: form.progress_value, og_title: form.og_title || null,
         og_description: form.og_description || null, internal_notes: form.internal_notes || null,
+        payment_account_id: form.payment_account_id || null, payments_enabled: form.payments_enabled,
       }
 
       const method = eventId ? 'PATCH' : 'POST'
@@ -467,6 +473,33 @@ export function EventForm({ eventId }: { eventId?: string }) {
         <Field label="Notas internas (nunca visible al público)">
           <textarea style={{ ...textareaStyle, minHeight: '200px' }} value={form.internal_notes} onChange={(e) => set('internal_notes')(e.target.value)} />
         </Field>
+      )
+      case 10: return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.payments_enabled} onChange={(e) => set('payments_enabled')(e.target.checked)}
+              style={{ accentColor: '#C9A84C', width: '14px', height: '14px' }} />
+            <span style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '13px', color: '#F5F0E8' }}>Activar pagos para este evento</span>
+          </label>
+          <Field label="Cuenta de pago">
+            <select style={selectStyle} value={form.payment_account_id} onChange={(e) => set('payment_account_id')(e.target.value)}>
+              <option value="">Usar cuenta principal</option>
+              {paymentAccounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}{a.is_main_account ? ' (principal)' : ''}</option>
+              ))}
+            </select>
+          </Field>
+          <Row>
+            <Field label="Precio">
+              <input style={inputStyle} type="number" min="0" value={form.price} onChange={(e) => set('price')(e.target.value)} />
+            </Field>
+            <Field label="Moneda">
+              <select style={selectStyle} value={form.currency} onChange={(e) => set('currency')(e.target.value)}>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+          </Row>
+        </div>
       )
       default: return null
     }

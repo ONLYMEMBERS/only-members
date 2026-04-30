@@ -24,6 +24,8 @@ type FormData = {
 }
 
 type FormStatus = 'idle' | 'loading' | 'success' | 'error'
+type ModalView = 'register' | 'login'
+type LoginStatus = 'idle' | 'loading' | 'sent' | 'error'
 
 const INITIAL: FormData = {
   first_name: '', last_name: '', email: '', phone: '',
@@ -131,6 +133,9 @@ export function RegistrationModal({ isOpen, onClose, event }: Props) {
   const [errorMsg, setErrorMsg] = useState('')
   const overlayRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
+  const [view, setView] = useState<ModalView>('register')
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginStatus, setLoginStatus] = useState<LoginStatus>('idle')
 
   useEffect(() => {
     if (isOpen) {
@@ -139,7 +144,7 @@ export function RegistrationModal({ isOpen, onClose, event }: Props) {
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = ''
-      setTimeout(() => { setMounted(false); setStatus('idle'); setForm(INITIAL) }, 350)
+      setTimeout(() => { setMounted(false); setStatus('idle'); setForm(INITIAL); setView('register'); setLoginStatus('idle'); setLoginEmail('') }, 350)
     }
     return () => { document.body.style.overflow = '' }
   }, [isOpen])
@@ -206,6 +211,23 @@ export function RegistrationModal({ isOpen, onClose, event }: Props) {
 
   if (!mounted && !isOpen) return null
 
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!loginEmail) return
+    setLoginStatus('loading')
+    try {
+      const res = await fetch('/api/auth/magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail }),
+      })
+      if (!res.ok) throw new Error()
+      setLoginStatus('sent')
+    } catch {
+      setLoginStatus('error')
+    }
+  }
+
   const countryOptions = countries.map((c) => ({
     value: c.code,
     label: lang === 'es' ? c.name : c.nameEn,
@@ -271,8 +293,48 @@ export function RegistrationModal({ isOpen, onClose, event }: Props) {
           </p>
         </div>
 
-        {/* Success state */}
-        {status === 'success' ? (
+        {/* Login view */}
+        {view === 'login' ? (
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color: 'var(--bone)', marginBottom: '20px' }}>
+              {t.loginTitle}
+            </h2>
+            {loginStatus === 'sent' ? (
+              <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                <p style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '13px', color: 'rgba(245,240,232,0.8)' }}>
+                  {t.loginSent}
+                </p>
+                <button onClick={() => setView('register')} style={{ marginTop: '20px', fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', color: 'rgba(201,168,76,0.6)', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'none' }}>
+                  {t.loginBack}
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <InputField label={t.loginEmail} value={loginEmail} onChange={setLoginEmail} type="email" required />
+                {loginStatus === 'error' && (
+                  <p style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', color: '#e57373' }}>
+                    {t.errorGeneral}
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={loginStatus === 'loading'}
+                  style={{ width: '100%', padding: '16px', background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.35)', borderRadius: '4px', color: 'var(--gold)', fontFamily: 'var(--font-inter)', fontWeight: 500, fontSize: '11px', letterSpacing: '0.15em', opacity: loginStatus === 'loading' ? 0.6 : 1, transition: 'background 200ms', cursor: 'pointer' }}
+                  onMouseEnter={(e) => { if (loginStatus !== 'loading') (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.18)' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(201,168,76,0.08)' }}
+                >
+                  {loginStatus === 'loading' ? t.loginSending : t.loginSend}
+                </button>
+                <button type="button" onClick={() => setView('register')} style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', color: 'rgba(201,168,76,0.6)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'center' }}>
+                  {t.loginBack}
+                </button>
+              </form>
+            )}
+          </div>
+        ) : (
+
+        /* Success state */
+        status === 'success' ? (
           <div className="flex flex-col items-center text-center py-8" style={{ gap: '16px' }}>
             <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
               <path d="M20 4L24.5 15.5L37 16L28 24.5L31 37L20 30.5L9 37L12 24.5L3 16L15.5 15.5L20 4Z" stroke="#C9A84C" strokeWidth="0.8" fill="rgba(201,168,76,0.08)"/>
@@ -364,7 +426,21 @@ export function RegistrationModal({ isOpen, onClose, event }: Props) {
             >
               {status === 'loading' ? t.submitting : t.submitLabel}
             </button>
+
+            {/* Separator + Login link */}
+            <div style={{ marginTop: '20px', borderTop: '0.5px solid rgba(201,168,76,0.15)', paddingTop: '20px', textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setView('login')}
+                style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', color: 'rgba(201,168,76,0.5)', background: 'transparent', border: 'none', cursor: 'pointer', transition: 'color 200ms' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(201,168,76,1)' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(201,168,76,0.5)' }}
+              >
+                {t.loginLink}
+              </button>
+            </div>
           </form>
+        )
         )}
       </div>
     </div>

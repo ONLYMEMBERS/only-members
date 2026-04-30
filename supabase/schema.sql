@@ -222,3 +222,95 @@ $$;
 insert into cities (name, country, slug) values
   ('Buenos Aires', 'Argentina', 'buenos-aires'),
   ('Madrid', 'España', 'madrid');
+
+-- ─── Bloque 1: Nuevas tablas y alteraciones ───────────────────────────────────
+
+-- Cuentas de pago (MercadoPago / futuro Stripe)
+create table payment_accounts (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  mp_access_token text,
+  mp_public_key text,
+  mp_user_id text,
+  city_id uuid references cities(id),
+  fee_percentage numeric default null,
+  is_main_account boolean default false,
+  active boolean default true,
+  created_at timestamptz default now()
+);
+
+-- Campos de pago en eventos
+alter table events add column if not exists payment_account_id uuid references payment_accounts(id);
+alter table events add column if not exists payments_enabled boolean default false;
+
+-- Pagos
+create table payments (
+  id uuid primary key default gen_random_uuid(),
+  registration_id uuid references registrations(id),
+  event_id uuid references events(id),
+  payment_account_id uuid references payment_accounts(id),
+  mp_preference_id text,
+  mp_payment_id text,
+  amount numeric not null,
+  currency text default 'ARS',
+  discount_amount numeric default 0,
+  discount_code text,
+  status text check (status in ('pending','approved','rejected','expired')) default 'pending',
+  fee_amount numeric default 0,
+  net_amount numeric,
+  mp_status text,
+  mp_status_detail text,
+  paid_at timestamptz,
+  expires_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- Ampliar referral_codes con descuentos
+alter table referral_codes
+  add column if not exists discount_type text check (discount_type in ('percentage','fixed')) default null,
+  add column if not exists discount_value numeric default null,
+  add column if not exists max_uses integer default null,
+  add column if not exists uses_count integer default 0,
+  add column if not exists active boolean default true;
+
+-- Soporte / mensajes
+create table support_messages (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text not null,
+  message text not null,
+  event_related text,
+  status text default 'unread',
+  created_at timestamptz default now()
+);
+
+-- Perfil de usuario (ligado a Supabase Auth)
+create table user_profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  first_name text,
+  last_name text,
+  email text,
+  preferred_language text default 'es',
+  created_at timestamptz default now()
+);
+
+-- Trigger updated_at para payments
+create trigger payments_updated_at before update on payments
+  for each row execute function set_updated_at();
+
+-- RLS nuevas tablas
+alter table payment_accounts enable row level security;
+alter table payments enable row level security;
+alter table support_messages enable row level security;
+alter table user_profiles enable row level security;
+
+-- support_messages: INSERT público (todos pueden enviar), SELECT/UPDATE solo service_role
+create policy "support_messages_public_insert" on support_messages
+  for insert with check (true);
+
+-- user_profiles: cada usuario ve y edita su propio perfil
+create policy "user_profiles_select" on user_profiles
+  for select using (auth.uid() = id);
+create policy "user_profiles_update" on user_profiles
+  for update using (auth.uid() = id);

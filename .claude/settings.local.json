@@ -15,7 +15,9 @@
       "Bash(node -e \"const t = require\\('./node_modules/@supabase/ssr/dist/cjs/types.js'\\); console.log\\(Object.keys\\(t\\)\\)\")",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(grep -v \"^--$\")"
     ]
   }
 }

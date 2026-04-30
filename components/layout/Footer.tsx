@@ -1,10 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { SupportModal } from '@/components/ui/SupportModal'
+import { useI18n } from '@/lib/i18n'
 
 export function Footer() {
+  const { t } = useI18n()
   const ref = useRef<HTMLElement>(null)
   const [visible, setVisible] = useState(false)
+  const [supportOpen, setSupportOpen] = useState(false)
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -16,6 +20,7 @@ export function Footer() {
   }, [])
 
   return (
+    <>
     <footer
       ref={ref}
       style={{
@@ -31,17 +36,38 @@ export function Footer() {
         gap: '20px',
       }}
     >
-      <span
-        style={{
-          fontFamily: 'var(--font-inter)',
-          fontWeight: 500,
-          fontSize: '13px',
-          letterSpacing: '0.15em',
-          color: 'rgba(245,240,232,0.5)',
-        }}
-      >
-        RESILIO®
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+        <span
+          style={{
+            fontFamily: 'var(--font-inter)',
+            fontWeight: 500,
+            fontSize: '13px',
+            letterSpacing: '0.15em',
+            color: 'rgba(245,240,232,0.5)',
+          }}
+        >
+          RESILIO®
+        </span>
+        <button
+          onClick={() => setSupportOpen(true)}
+          style={{
+            fontFamily: 'var(--font-inter)',
+            fontWeight: 500,
+            fontSize: '11px',
+            letterSpacing: '0.15em',
+            color: 'rgba(245,240,232,0.5)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            transition: 'color 200ms',
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(245,240,232,1)' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(245,240,232,0.5)' }}
+        >
+          {t.supportLabel}
+        </button>
+      </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <a
@@ -93,5 +119,7 @@ export function Footer() {
         </a>
       </div>
     </footer>
+    <SupportModal isOpen={supportOpen} onClose={() => setSupportOpen(false)} />
+    </>
   )
 }
