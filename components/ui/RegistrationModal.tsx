@@ -296,15 +296,24 @@ export function RegistrationModal({ isOpen, onClose, event }: Props) {
         {/* Login view */}
         {view === 'login' ? (
           <div>
-            <h2 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color: 'var(--bone)', marginBottom: '20px' }}>
+            <h2 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '20px', color: 'var(--bone)', marginBottom: '8px', letterSpacing: '0.05em' }}>
               {t.loginTitle}
             </h2>
+            <p style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', color: 'rgba(245,240,232,0.6)', marginBottom: '24px', lineHeight: 1.6 }}>
+              {(t as any).loginSubtitle}
+            </p>
             {loginStatus === 'sent' ? (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <p style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '13px', color: 'rgba(245,240,232,0.8)' }}>
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 16px', display: 'block', opacity: 0.8 }}>
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                <p style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '14px', color: 'rgba(245,240,232,0.85)', marginBottom: '20px' }}>
                   {t.loginSent}
                 </p>
-                <button onClick={() => setView('register')} style={{ marginTop: '20px', fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', color: 'rgba(201,168,76,0.6)', background: 'transparent', border: 'none', cursor: 'pointer', textDecoration: 'none' }}>
+                <button onClick={() => setView('register')} style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', color: 'rgba(201,168,76,0.6)', background: 'transparent', border: 'none', cursor: 'pointer', transition: 'color 200ms' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(201,168,76,1)' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(201,168,76,0.6)' }}>
                   {t.loginBack}
                 </button>
               </div>
@@ -325,7 +334,9 @@ export function RegistrationModal({ isOpen, onClose, event }: Props) {
                 >
                   {loginStatus === 'loading' ? t.loginSending : t.loginSend}
                 </button>
-                <button type="button" onClick={() => setView('register')} style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', color: 'rgba(201,168,76,0.6)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'center' }}>
+                <button type="button" onClick={() => setView('register')} style={{ fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '12px', color: 'rgba(201,168,76,0.6)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'center', transition: 'color 200ms' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(201,168,76,1)' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(201,168,76,0.6)' }}>
                   {t.loginBack}
                 </button>
               </form>

@@ -147,18 +147,18 @@ function EventCard({ reg, payment, onRsvp }: {
 
         {/* ESTADO: INVITED */}
         {isInvited && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <button
               onClick={() => handleRsvp('confirmed')}
               disabled={!!rsvpLoading}
-              style={{ padding: '14px', background: 'rgba(72,187,120,0.1)', border: '0.5px solid rgba(72,187,120,0.4)', borderRadius: '6px', color: 'rgba(72,187,120,0.9)', ...S, fontSize: '11px', letterSpacing: '0.12em', cursor: 'pointer', opacity: rsvpLoading ? 0.6 : 1 }}
+              style={{ width: '100%', padding: '14px', background: 'rgba(72,187,120,0.1)', border: '0.5px solid rgba(72,187,120,0.4)', borderRadius: '6px', color: 'rgba(72,187,120,0.9)', ...S, fontSize: '13px', letterSpacing: '0.12em', cursor: 'pointer', opacity: rsvpLoading ? 0.6 : 1 }}
             >
               {rsvpLoading === 'confirmed' ? '...' : t.cuentaConfirm}
             </button>
             <button
               onClick={() => handleRsvp('declined')}
               disabled={!!rsvpLoading}
-              style={{ padding: '12px', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.15)', borderRadius: '6px', color: 'rgba(245,240,232,0.4)', ...S, fontSize: '11px', letterSpacing: '0.1em', cursor: 'pointer', opacity: rsvpLoading ? 0.6 : 1 }}
+              style={{ width: '100%', padding: '14px', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.15)', borderRadius: '6px', color: 'rgba(245,240,232,0.4)', ...S, fontSize: '13px', letterSpacing: '0.1em', cursor: 'pointer', opacity: rsvpLoading ? 0.6 : 1 }}
             >
               {rsvpLoading === 'declined' ? '...' : t.cuentaDecline}
             </button>

@@ -133,6 +133,21 @@ export default async function EventPage({ params }: PageProps) {
           }}
         />
 
+        {/* Watermark */}
+        <div style={{ position: 'absolute', bottom: '8%', right: '-2%', zIndex: 1, pointerEvents: 'none', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+          <span style={{
+            fontFamily: 'var(--font-cormorant)', fontWeight: 300,
+            fontSize: 'clamp(40px, 15vw, 180px)',
+            letterSpacing: '0.05em',
+            color: 'rgba(245,240,232,0.06)',
+            display: 'block',
+            wordBreak: 'keep-all',
+            whiteSpace: 'nowrap',
+          }}>
+            ONLY MEMBERS
+          </span>
+        </div>
+
         {/* Content */}
         <div style={{ position: 'relative', zIndex: 2, padding: 'clamp(40px, 6vw, 80px) clamp(24px, 5vw, 80px)', width: '100%' }}>
           {/* Status badge */}

@@ -6,6 +6,23 @@ import { InvitationEmail } from '@/emails/InvitationEmail'
 
 const BATCH_SIZE = 50
 
+function replaceVariables(template: string, data: {
+  nombre: string
+  apellido: string
+  evento: string
+  ciudad: string
+  fecha: string
+  link_compra?: string
+}): string {
+  return template
+    .replace(/\{\{nombre\}\}/g, data.nombre)
+    .replace(/\{\{apellido\}\}/g, data.apellido)
+    .replace(/\{\{evento\}\}/g, data.evento)
+    .replace(/\{\{ciudad\}\}/g, data.ciudad)
+    .replace(/\{\{fecha\}\}/g, data.fecha)
+    .replace(/\{\{link_compra\}\}/g, data.link_compra ?? '')
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { registration_ids, subject_es, subject_en, body_es, body_en } = await req.json()
@@ -34,10 +51,22 @@ export async function POST(req: NextRequest) {
           const lang = reg.language ?? 'es'
           const event = reg.events
           const city = event?.cities?.name ?? ''
-          const customBody = lang === 'en' ? body_en : body_es
-          const subject = lang === 'en'
+          const dateStr = event?.date_start
+            ? new Date(event.date_start).toLocaleDateString(lang === 'en' ? 'en-US' : 'es-ES', { day: '2-digit', month: 'long', year: 'numeric' })
+            : ''
+          const vars = {
+            nombre: reg.first_name,
+            apellido: reg.last_name,
+            evento: event?.name ?? '',
+            ciudad: city,
+            fecha: dateStr,
+          }
+          const rawBody = lang === 'en' ? body_en : body_es
+          const rawSubject = lang === 'en'
             ? (subject_en ?? `You are invited to ${event?.name}`)
             : (subject_es ?? `Estás invitado/a a ${event?.name}`)
+          const customBody = rawBody ? replaceVariables(rawBody, vars) : undefined
+          const subject = replaceVariables(rawSubject, vars)
 
           try {
             const { id: resendId } = await sendEmail({

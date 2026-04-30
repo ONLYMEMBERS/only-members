@@ -24,9 +24,9 @@ export function UserFloatingButton() {
     <Link
       href="/cuenta"
       title="Mi cuenta"
+      className="bottom-24 md:bottom-8"
       style={{
         position: 'fixed',
-        bottom: '32px',
         left: '32px',
         width: '44px',
         height: '44px',

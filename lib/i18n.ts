@@ -71,12 +71,13 @@ export const strings = {
     emailPlaceholder: 'Correo electrónico',
     // Magic link
     loginLink: 'Ingresar',
-    loginTitle: 'Acceder a mi cuenta',
+    loginTitle: 'ACCEDÉ A TU CUENTA',
+    loginSubtitle: 'Ingresá tu email y te enviamos un link de acceso instantáneo.',
     loginEmail: 'Correo electrónico',
     loginSend: 'ENVIAR LINK DE ACCESO',
     loginSending: 'ENVIANDO...',
-    loginSent: 'Revisá tu email para acceder.',
-    loginBack: '← Volver',
+    loginSent: 'Revisá tu email. El link expira en 10 minutos.',
+    loginBack: '← Volver al registro',
     // /cuenta page
     cuentaBack: '← ONLY MEMBERS',
     cuentaGreeting: 'Hola,',
@@ -170,12 +171,13 @@ export const strings = {
     emailPlaceholder: 'Email address',
     // Magic link
     loginLink: 'Sign in',
-    loginTitle: 'Access my account',
+    loginTitle: 'ACCESS YOUR ACCOUNT',
+    loginSubtitle: 'Enter your email and we\'ll send you an instant access link.',
     loginEmail: 'Email address',
     loginSend: 'SEND ACCESS LINK',
     loginSending: 'SENDING...',
-    loginSent: 'Check your email to access.',
-    loginBack: '← Back',
+    loginSent: 'Check your email. The link expires in 10 minutes.',
+    loginBack: '← Back to registration',
     // /cuenta page
     cuentaBack: '← ONLY MEMBERS',
     cuentaGreeting: 'Hello,',

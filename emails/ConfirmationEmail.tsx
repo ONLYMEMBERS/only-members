@@ -1,5 +1,5 @@
 import {
-  Html, Body, Container, Heading, Text, Hr, Section, Preview,
+  Html, Body, Container, Heading, Text, Button, Hr, Section, Preview,
 } from '@react-email/components'
 import React from 'react'
 
@@ -10,6 +10,7 @@ interface Props {
   country: string
   dateStart: string | null
   language?: string
+  magicLink?: string
 }
 
 function formatDate(d: string | null) {
@@ -19,7 +20,7 @@ function formatDate(d: string | null) {
   })
 }
 
-export function ConfirmationEmail({ firstName, eventName, city, country, dateStart, language = 'es' }: Props) {
+export function ConfirmationEmail({ firstName, eventName, city, country, dateStart, language = 'es', magicLink }: Props) {
   const es = language !== 'en'
 
   return (
@@ -63,6 +64,26 @@ export function ConfirmationEmail({ firstName, eventName, city, country, dateSta
               {city} · {country}{dateStart ? ` · ${formatDate(dateStart)}` : ''}
             </Text>
           </Section>
+
+          {/* Magic link CTA */}
+          {magicLink && (
+            <Section style={{ marginBottom: '32px' }}>
+              <Text style={{ fontFamily: 'Arial, sans-serif', fontWeight: 300, fontSize: '13px', color: 'rgba(245,240,232,0.6)', lineHeight: 1.7, marginBottom: '16px' }}>
+                {es
+                  ? 'Accedé a tu cuenta para ver el estado de tu solicitud.'
+                  : 'Access your account to track your request status.'}
+              </Text>
+              <Button href={magicLink} style={{
+                display: 'inline-block', padding: '14px 28px',
+                background: 'rgba(201,168,76,0.12)', border: '0.5px solid rgba(201,168,76,0.5)',
+                borderRadius: '3px', color: '#C9A84C',
+                fontFamily: 'Arial, sans-serif', fontSize: '11px', letterSpacing: '0.12em',
+                textDecoration: 'none',
+              }}>
+                {es ? 'VER MI CUENTA' : 'MY ACCOUNT'}
+              </Button>
+            </Section>
+          )}
 
           <Hr style={{ border: 'none', borderTop: '0.5px solid rgba(201,168,76,0.12)', marginBottom: '24px' }} />
 

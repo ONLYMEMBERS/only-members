@@ -100,10 +100,31 @@ export async function POST(req: NextRequest) {
       try { await admin.rpc('increment_referral', { code: ref_code }) } catch {}
     }
 
+    // Create Supabase Auth account (non-blocking — if user already exists, continue)
+    let magicLink: string | undefined
+    try {
+      await admin.auth.admin.createUser({
+        email: email.toLowerCase().trim(),
+        email_confirm: true,
+        user_metadata: { first_name: first_name.trim(), last_name: last_name.trim() },
+      })
+    } catch {}
+
+    // Generate welcome magic link
+    try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://onlymembers.life'
+      const { data: linkData } = await admin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: email.toLowerCase().trim(),
+        options: { redirectTo: `${siteUrl}/cuenta` },
+      })
+      magicLink = (linkData as any)?.properties?.action_link ?? undefined
+    } catch {}
+
     // Send confirmation email — non-blocking, never breaks the registration
     try {
       await sendConfirmationEmail(
-        { id: registration.id, first_name, email, language },
+        { id: registration.id, first_name, email, language, magicLink },
         event as any,
       )
     } catch (e) {
