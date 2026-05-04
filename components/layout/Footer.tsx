@@ -94,6 +94,35 @@ export function Footer() {
         </button>
       </div>
 
+      {/* Legal links */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+        {[
+          { label: 'Privacidad', href: '/legal/privacidad' },
+          { label: 'Términos', href: '/legal/terminos' },
+          { label: 'Cookies', href: '/legal/cookies' },
+        ].map((link, i) => (
+          <span key={link.href} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {i > 0 && <span style={{ fontFamily: 'var(--font-inter)', fontSize: '10px', color: 'rgba(245,240,232,0.2)' }}>·</span>}
+            <Link
+              href={link.href}
+              style={{
+                fontFamily: 'var(--font-inter)',
+                fontWeight: 300,
+                fontSize: '10px',
+                letterSpacing: '0.05em',
+                color: 'rgba(245,240,232,0.3)',
+                textDecoration: 'none',
+                transition: 'color 200ms',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(245,240,232,0.6)' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'rgba(245,240,232,0.3)' }}
+            >
+              {link.label}
+            </Link>
+          </span>
+        ))}
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <a
           href={process.env.NEXT_PUBLIC_INSTAGRAM_URL ?? 'https://instagram.com'}

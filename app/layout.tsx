@@ -5,6 +5,7 @@ import { AppProviders } from '@/components/ui/AppProviders'
 import { AuthProvider } from '@/lib/auth-context'
 import UserFloatingButton from '@/components/ui/UserFloatingButton'
 import AuthHandler from '@/components/ui/AuthHandler'
+import { CookieBanner } from '@/components/ui/CookieBanner'
 
 const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AuthHandler />
             {children}
             <UserFloatingButton />
+            <CookieBanner />
           </AuthProvider>
         </AppProviders>
       </body>
