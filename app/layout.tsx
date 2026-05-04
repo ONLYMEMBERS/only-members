@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import { Cormorant_Garamond, Inter } from 'next/font/google'
 import './globals.css'
 import { AppProviders } from '@/components/ui/AppProviders'
+import { AuthProvider } from '@/lib/auth-context'
 import UserFloatingButton from '@/components/ui/UserFloatingButton'
-import { AuthErrorHandler } from '@/components/ui/AuthErrorHandler'
 import AuthHandler from '@/components/ui/AuthHandler'
 
 const cormorant = Cormorant_Garamond({
@@ -40,10 +40,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className={`${cormorant.variable} ${inter.variable}`}>
       <body className="antialiased">
         <AppProviders>
-          <AuthHandler />
-          {children}
-          <UserFloatingButton />
-          <AuthErrorHandler />
+          <AuthProvider>
+            <AuthHandler />
+            {children}
+            <UserFloatingButton />
+          </AuthProvider>
         </AppProviders>
       </body>
     </html>

@@ -1,33 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useAuth } from '@/lib/auth-context'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase-browser'
 
 export default function UserFloatingButton() {
-  const [hasSession, setHasSession] = useState(false)
+  const { session, loading } = useAuth()
   const router = useRouter()
 
-  useEffect(() => {
-    const supabase = createClient()
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setHasSession(!!session)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setHasSession(!!session)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  if (!hasSession) return null
+  if (loading || !session) return null
 
   return (
     <button
       onClick={() => router.push('/cuenta')}
-      title="Mi cuenta"
+      aria-label="Mi cuenta"
       style={{
         position: 'fixed',
         bottom: '32px',
@@ -47,14 +32,12 @@ export default function UserFloatingButton() {
         boxShadow: '0 0 20px rgba(201,168,76,0.1)',
       }}
       onMouseEnter={(e) => {
-        const el = e.currentTarget as HTMLButtonElement
-        el.style.background = 'rgba(201,168,76,0.12)'
-        el.style.transform = 'scale(1.05)'
+        e.currentTarget.style.background = 'rgba(201,168,76,0.12)'
+        e.currentTarget.style.transform = 'scale(1.05)'
       }}
       onMouseLeave={(e) => {
-        const el = e.currentTarget as HTMLButtonElement
-        el.style.background = 'rgba(10,10,15,0.92)'
-        el.style.transform = 'scale(1)'
+        e.currentTarget.style.background = 'rgba(10,10,15,0.92)'
+        e.currentTarget.style.transform = 'scale(1)'
       }}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none"

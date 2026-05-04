@@ -63,6 +63,7 @@ function InputField({
             : '0.5px solid rgba(201,168,76,0.2)',
           padding: '10px 0',
           color: 'var(--bone)',
+          caretColor: '#C9A84C',
           fontFamily: 'var(--font-inter)',
           fontWeight: 300,
           fontSize: '14px',
@@ -236,7 +237,7 @@ export function RegistrationModal({ isOpen, onClose, event }: Props) {
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 flex items-center justify-center z-[8000] px-4 py-6"
+      className="fixed inset-0 flex items-center justify-center z-[9999] px-4 py-6"
       style={{
         background: 'rgba(0,0,0,0.85)',
         backdropFilter: 'blur(4px)',

@@ -79,7 +79,7 @@ export function CustomCursor() {
         borderRadius: '50%',
         background: 'var(--gold)',
         pointerEvents: 'none',
-        zIndex: 9999,
+        zIndex: 9998,
         transition: 'width 200ms ease, height 200ms ease, background 200ms ease, border 200ms ease, margin 200ms ease',
         willChange: 'transform',
       }}

@@ -9,6 +9,16 @@ const nextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.onlymembers.life' }],
+        destination: 'https://onlymembers.life/:path*',
+        permanent: true,
+      },
+    ]
+  },
 }
 
 export default nextConfig
