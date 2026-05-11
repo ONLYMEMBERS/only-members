@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-context'
+import { useAuthModal } from '@/lib/auth-modal-context'
 
 export default function AuthHandler() {
   const router = useRouter()
   const { session } = useAuth()
+  const { openModal: openLoginModal } = useAuthModal()
   const [showExpiredModal, setShowExpiredModal] = useState(false)
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
@@ -32,6 +34,12 @@ export default function AuthHandler() {
     if (params.get('auth_error') === 'expired') {
       window.history.replaceState(null, '', window.location.pathname)
       setShowExpiredModal(true)
+      return
+    }
+
+    if (params.get('login') === 'true') {
+      window.history.replaceState(null, '', window.location.pathname)
+      openLoginModal()
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

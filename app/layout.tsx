@@ -3,8 +3,10 @@ import { Cormorant_Garamond, Inter } from 'next/font/google'
 import './globals.css'
 import { AppProviders } from '@/components/ui/AppProviders'
 import { AuthProvider } from '@/lib/auth-context'
+import { AuthModalProvider } from '@/lib/auth-modal-context'
 import UserFloatingButton from '@/components/ui/UserFloatingButton'
 import AuthHandler from '@/components/ui/AuthHandler'
+import AuthLoginModal from '@/components/ui/AuthLoginModal'
 import { CookieBanner } from '@/components/ui/CookieBanner'
 
 const cormorant = Cormorant_Garamond({
@@ -42,10 +44,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="antialiased">
         <AppProviders>
           <AuthProvider>
-            <AuthHandler />
-            {children}
-            <UserFloatingButton />
-            <CookieBanner />
+            <AuthModalProvider>
+              <AuthHandler />
+              {children}
+              <UserFloatingButton />
+              <CookieBanner />
+              <AuthLoginModal />
+            </AuthModalProvider>
           </AuthProvider>
         </AppProviders>
       </body>

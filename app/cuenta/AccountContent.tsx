@@ -7,37 +7,117 @@ import { createClient } from '@/lib/supabase-browser'
 import { useI18n } from '@/lib/i18n'
 
 const S = { fontFamily: 'var(--font-inter)', fontWeight: 300 } as const
+const TTL_MS = 15 * 60 * 1000
 
-function generateQrToken(registrationId: string) {
-  if (typeof window === 'undefined') return ''
-  return btoa(JSON.stringify({
-    registration_id: registrationId,
-    expires: Date.now() + 15 * 60 * 1000,
-  }))
-}
+// ─── QR Modal ────────────────────────────────────────────────────────────────
 
-function QrBlock({ registrationId }: { registrationId: string }) {
-  const [token, setToken] = useState(() => generateQrToken(registrationId))
-  const { t } = useI18n()
+function QrModal({ registration, event, lang, onClose }: {
+  registration: any
+  event: any
+  lang: string
+  onClose: () => void
+}) {
+  const [expiry, setExpiry] = useState(() => Date.now() + TTL_MS)
+  const [timeLeft, setTimeLeft] = useState(TTL_MS / 1000)
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setToken(generateQrToken(registrationId))
-    }, 15 * 60 * 1000)
-    return () => clearInterval(interval)
-  }, [registrationId])
+    const tick = setInterval(() => {
+      const remaining = expiry - Date.now()
+      if (remaining <= 0) {
+        const ne = Date.now() + TTL_MS
+        setExpiry(ne)
+        setTimeLeft(TTL_MS / 1000)
+      } else {
+        setTimeLeft(Math.ceil(remaining / 1000))
+      }
+    }, 1000)
+    return () => clearInterval(tick)
+  }, [expiry])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const qrContent = btoa(JSON.stringify({ rid: registration.id, exp: expiry, v: 1 }))
+  const pct = (timeLeft / (TTL_MS / 1000)) * 100
+
+  const dateStr = event.date_start
+    ? new Date(event.date_start).toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
+        day: '2-digit', month: 'long', year: 'numeric',
+        timeZone: event.timezone ?? 'UTC',
+      })
+    : ''
+
+  const mins = Math.floor(timeLeft / 60)
+  const secs = String(timeLeft % 60).padStart(2, '0')
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-      <div style={{ padding: '16px', background: '#fff', borderRadius: '12px' }}>
-        <QRCodeSVG value={token} size={256} />
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9998,
+        background: 'rgba(5,5,10,0.97)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexDirection: 'column',
+        padding: '32px',
+      }}
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        style={{
+          position: 'absolute', top: '24px', right: '24px',
+          background: 'transparent', border: 'none', cursor: 'pointer',
+          color: 'rgba(245,240,232,0.5)', fontSize: '32px', lineHeight: 1, padding: '8px',
+        }}
+      >
+        ×
+      </button>
+
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', maxWidth: '360px', width: '100%' }}
+      >
+        <p style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color: '#F5F0E8', textAlign: 'center', margin: 0 }}>
+          {registration.first_name} {registration.last_name}
+        </p>
+
+        <div style={{ padding: '16px', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '12px' }}>
+          <QRCodeSVG value={qrContent} size={300} bgColor="transparent" fgColor="#F5F0E8" level="H" />
+        </div>
+
+        <div style={{ width: '100%' }}>
+          <div style={{ width: '100%', height: '2px', background: 'rgba(245,240,232,0.08)', borderRadius: '1px', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${pct}%`,
+              background: pct > 30 ? '#C9A84C' : '#e57373',
+              transition: 'width 1s linear',
+              borderRadius: '1px',
+            }} />
+          </div>
+          <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.3)', textAlign: 'center', marginTop: '8px', letterSpacing: '0.06em' }}>
+            {lang === 'es' ? 'Válido por' : 'Valid for'} {mins}:{secs}
+          </p>
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.6)', letterSpacing: '0.06em', margin: 0 }}>
+            {event.name}
+          </p>
+          {dateStr && (
+            <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.35)', letterSpacing: '0.04em', marginTop: '4px' }}>
+              {dateStr}
+            </p>
+          )}
+        </div>
       </div>
-      <p style={{ ...S, fontSize: '12px', color: 'rgba(201,168,76,0.6)', letterSpacing: '0.06em' }}>
-        {t.cuentaQrInstructions}
-      </p>
     </div>
   )
 }
+
+// ─── Event Card ───────────────────────────────────────────────────────────────
 
 function EventCard({ reg, payment, onRsvp }: {
   reg: any
@@ -49,6 +129,7 @@ function EventCard({ reg, payment, onRsvp }: {
   const [loadingPayment, setLoadingPayment] = useState(false)
   const [rsvpLoading, setRsvpLoading] = useState<string | null>(null)
   const [localStatus, setLocalStatus] = useState(reg.status)
+  const [showQrModal, setShowQrModal] = useState(false)
 
   const ev = reg.events
   if (!ev) return null
@@ -67,7 +148,17 @@ function EventCard({ reg, payment, onRsvp }: {
   const isInvited = localStatus === 'invited'
   const isPending = localStatus === 'pending' || localStatus === 'waitlist'
   const hasPaid = payment?.status === 'approved'
-  const hasPayment = reg.paymentAvailable && ev.price && isInvited
+  const hasPayment = reg.paymentAvailable && ev.price && !hasPaid && (isInvited || localStatus === 'confirmed')
+
+  const statusBadge: Record<string, { label: string; color: string }> = {
+    invited: { label: lang === 'es' ? 'INVITACIÓN EXCLUSIVA' : 'EXCLUSIVE INVITATION', color: 'rgba(201,168,76,0.7)' },
+    confirmed: { label: lang === 'es' ? 'CONFIRMADO' : 'CONFIRMED', color: 'rgba(245,240,232,0.5)' },
+    purchased: { label: lang === 'es' ? 'ACCESO CONFIRMADO' : 'ACCESS CONFIRMED', color: 'rgba(72,187,120,0.7)' },
+    pending: { label: lang === 'es' ? 'EN REVISIÓN' : 'UNDER REVIEW', color: 'rgba(245,240,232,0.3)' },
+    waitlist: { label: lang === 'es' ? 'LISTA DE ESPERA' : 'WAITLIST', color: 'rgba(245,240,232,0.3)' },
+    declined: { label: lang === 'es' ? 'DECLINADO' : 'DECLINED', color: 'rgba(245,240,232,0.2)' },
+  }
+  const badge = statusBadge[localStatus] ?? { label: localStatus, color: 'rgba(245,240,232,0.3)' }
 
   async function handleRsvp(response: 'confirmed' | 'declined') {
     setRsvpLoading(response)
@@ -105,131 +196,244 @@ function EventCard({ reg, payment, onRsvp }: {
     }
   }
 
-  const cardStyle: React.CSSProperties = {
-    background: '#0F0F1A',
-    border: '0.5px solid rgba(201,168,76,0.18)',
-    borderRadius: '16px',
-    overflow: 'hidden',
-    maxWidth: '480px',
-    width: '100%',
-    opacity: isPast ? 0.6 : 1,
+  // ── Past event: compact card ──
+  if (isPast) {
+    const attended = ['purchased', 'confirmed'].includes(localStatus)
+    return (
+      <div style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.1)', borderRadius: '12px', overflow: 'hidden', maxWidth: '480px', width: '100%', opacity: 0.55 }}>
+        <div style={{ padding: '20px 24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+            <p style={{ ...S, fontSize: '10px', letterSpacing: '0.14em', color: 'rgba(201,168,76,0.4)', textTransform: 'uppercase', margin: 0 }}>
+              {city}{city && country ? ` · ${country}` : country}
+            </p>
+            <span style={{
+              ...S, fontSize: '10px', letterSpacing: '0.1em', padding: '3px 10px', borderRadius: '3px',
+              background: attended ? 'rgba(72,187,120,0.08)' : 'rgba(245,240,232,0.04)',
+              border: `0.5px solid ${attended ? 'rgba(72,187,120,0.2)' : 'rgba(245,240,232,0.1)'}`,
+              color: attended ? 'rgba(72,187,120,0.6)' : 'rgba(245,240,232,0.25)',
+            }}>
+              {attended ? (lang === 'es' ? 'ASISTIDO' : 'ATTENDED') : (lang === 'es' ? 'REGISTRADO' : 'REGISTERED')}
+            </span>
+          </div>
+          <h3 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '20px', color: 'rgba(245,240,232,0.55)', marginBottom: dateStr ? '4px' : '0', lineHeight: 1.2 }}>
+            {ev.name}
+          </h3>
+          {dateStr && <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.25)', margin: 0 }}>{dateStr}</p>}
+          {hasPaid && ev.price && (
+            <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.2)', marginTop: '6px' }}>
+              {payment?.amount ?? ev.price} {ev.currency}
+            </p>
+          )}
+        </div>
+      </div>
+    )
   }
 
+  // ── Active event: full card ──
   return (
-    <div style={cardStyle}>
-      {ev.cover_image && !isPast && (
-        <div style={{ width: '100%', aspectRatio: '16/7', overflow: 'hidden' }}>
-          <img src={ev.cover_image} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </div>
+    <>
+      {showQrModal && (
+        <QrModal
+          registration={reg}
+          event={ev}
+          lang={lang}
+          onClose={() => setShowQrModal(false)}
+        />
       )}
-      <div style={{ padding: '24px' }}>
-        <p style={{ ...S, fontSize: '10px', letterSpacing: '0.16em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase', marginBottom: '6px' }}>
-          {city}{city && country ? ` · ${country}` : country}
-        </p>
-        <h3 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '26px', color: 'var(--bone)', marginBottom: dateStr ? '4px' : '16px', lineHeight: 1.2 }}>
-          {ev.name}
-        </h3>
-        {dateStr && (
-          <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', marginBottom: '20px' }}>{dateStr}</p>
-        )}
 
-        {/* ESTADO: PENDING */}
-        {isPending && (
-          <div>
-            <p style={{ ...S, fontSize: '14px', color: 'var(--bone)', marginBottom: '6px' }}>
-              {t.cuentaUnderReview}
-            </p>
-            <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)' }}>
-              {t.cuentaUnderReviewSub}
-            </p>
-          </div>
-        )}
+      <div style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.18)', borderRadius: '16px', overflow: 'hidden', maxWidth: '480px', width: '100%' }}>
 
-        {/* ESTADO: INVITED */}
-        {isInvited && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {/* Pending RSVP band */}
+        {isInvited && reg.rsvp_token && (
+          <div style={{
+            background: 'rgba(201,168,76,0.08)',
+            borderBottom: '0.5px solid rgba(201,168,76,0.2)',
+            padding: '12px 20px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+          }}>
+            <p style={{ ...S, fontSize: '12px', color: 'rgba(201,168,76,0.8)', margin: 0, lineHeight: 1.4 }}>
+              {lang === 'es' ? 'Tenés una confirmación pendiente' : 'You have a pending confirmation'}
+            </p>
             <button
               onClick={() => handleRsvp('confirmed')}
               disabled={!!rsvpLoading}
-              style={{ width: '100%', padding: '14px', background: 'rgba(72,187,120,0.1)', border: '0.5px solid rgba(72,187,120,0.4)', borderRadius: '6px', color: 'rgba(72,187,120,0.9)', ...S, fontSize: '13px', letterSpacing: '0.12em', cursor: 'pointer', opacity: rsvpLoading ? 0.6 : 1 }}
+              style={{
+                ...S, fontSize: '10px', letterSpacing: '0.12em',
+                padding: '7px 14px', borderRadius: '4px',
+                background: 'rgba(201,168,76,0.1)',
+                border: '0.5px solid rgba(201,168,76,0.4)',
+                color: '#C9A84C', cursor: 'pointer',
+                opacity: rsvpLoading ? 0.6 : 1, whiteSpace: 'nowrap', flexShrink: 0,
+              }}
             >
-              {rsvpLoading === 'confirmed' ? '...' : t.cuentaConfirm}
+              {rsvpLoading === 'confirmed' ? '...' : (lang === 'es' ? 'CONFIRMAR AHORA' : 'CONFIRM NOW')}
             </button>
-            <button
-              onClick={() => handleRsvp('declined')}
-              disabled={!!rsvpLoading}
-              style={{ width: '100%', padding: '14px', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.15)', borderRadius: '6px', color: 'rgba(245,240,232,0.4)', ...S, fontSize: '13px', letterSpacing: '0.1em', cursor: 'pointer', opacity: rsvpLoading ? 0.6 : 1 }}
-            >
-              {rsvpLoading === 'declined' ? '...' : t.cuentaDecline}
-            </button>
-
-            {hasPayment && (
-              <div style={{ marginTop: '8px', paddingTop: '16px', borderTop: '0.5px solid rgba(201,168,76,0.1)' }}>
-                <input
-                  value={discountCode}
-                  onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
-                  placeholder={t.cuentaDiscountPlaceholder}
-                  style={{ width: '100%', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '4px', padding: '10px 12px', color: 'var(--bone)', ...S, fontSize: '13px', outline: 'none', marginBottom: '10px', boxSizing: 'border-box' }}
-                />
-                <button
-                  onClick={handlePayment}
-                  disabled={loadingPayment}
-                  style={{ width: '100%', padding: '14px', background: 'rgba(201,168,76,0.1)', border: '0.5px solid rgba(201,168,76,0.4)', borderRadius: '6px', color: 'var(--gold)', ...S, fontSize: '11px', letterSpacing: '0.12em', cursor: 'pointer', opacity: loadingPayment ? 0.6 : 1 }}
-                >
-                  {loadingPayment ? '...' : `${t.cuentaCompleteAccess} ${ev.price} ${ev.currency}`}
-                </button>
-              </div>
-            )}
           </div>
         )}
 
-        {/* ESTADO: CONFIRMED / PURCHASED */}
-        {isConfirmedOrPurchased && !isPast && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center' }}>
-            <QrBlock registrationId={reg.id} />
+        {/* Cover image */}
+        {ev.cover_image && (
+          <div style={{ width: '100%', aspectRatio: '16/7', overflow: 'hidden' }}>
+            <img src={ev.cover_image} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        )}
 
-            {/* Payment badge */}
-            {localStatus === 'purchased' && (
-              <span style={{
-                ...S, fontSize: '10px', letterSpacing: '0.12em', padding: '5px 14px', borderRadius: '3px',
-                background: hasPaid ? 'rgba(72,187,120,0.1)' : 'rgba(201,168,76,0.08)',
-                border: `0.5px solid rgba(${hasPaid ? '72,187,120' : '201,168,76'},0.3)`,
-                color: hasPaid ? 'rgba(72,187,120,0.9)' : 'var(--gold)',
-              }}>
-                {hasPaid ? t.cuentaPaymentApproved : t.cuentaPaymentPending}
+        <div style={{ padding: '24px' }}>
+
+          {/* Status badge */}
+          <p style={{ ...S, fontSize: '10px', letterSpacing: '0.16em', color: badge.color, textTransform: 'uppercase', marginBottom: '8px' }}>
+            {badge.label}
+          </p>
+
+          {/* City / country */}
+          <p style={{ ...S, fontSize: '10px', letterSpacing: '0.14em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase', marginBottom: '6px' }}>
+            {city}{city && country ? ` · ${country}` : country}
+          </p>
+
+          {/* Event name */}
+          <h3 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '26px', color: 'var(--bone)', marginBottom: dateStr ? '4px' : '20px', lineHeight: 1.2 }}>
+            {ev.name}
+          </h3>
+
+          {/* Date */}
+          {dateStr && (
+            <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', marginBottom: '20px' }}>{dateStr}</p>
+          )}
+
+          {/* Payment pending section */}
+          {hasPayment && (
+            <div style={{ marginBottom: '20px', padding: '16px', background: 'rgba(201,168,76,0.05)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <span style={{ ...S, fontSize: '10px', letterSpacing: '0.12em', padding: '4px 10px', borderRadius: '3px', background: 'rgba(201,168,76,0.1)', border: '0.5px solid rgba(201,168,76,0.3)', color: '#C9A84C' }}>
+                  {t.cuentaPaymentPending}
+                </span>
+                <span style={{ ...S, fontSize: '16px', color: 'var(--bone)', fontWeight: 300 }}>
+                  {ev.price} {ev.currency}
+                </span>
+              </div>
+              <input
+                value={discountCode}
+                onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                placeholder={t.cuentaDiscountPlaceholder}
+                style={{ width: '100%', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '4px', padding: '10px 12px', color: 'var(--bone)', ...S, fontSize: '13px', outline: 'none', marginBottom: '10px', boxSizing: 'border-box' }}
+              />
+              <button
+                onClick={handlePayment}
+                disabled={loadingPayment}
+                style={{
+                  width: '100%', padding: '14px',
+                  background: 'rgba(201,168,76,0.1)', border: '0.5px solid rgba(201,168,76,0.4)',
+                  borderRadius: '6px', color: '#C9A84C',
+                  ...S, fontSize: '11px', letterSpacing: '0.12em',
+                  cursor: loadingPayment ? 'wait' : 'pointer',
+                  animation: loadingPayment ? 'accountPulse 1.5s ease-in-out infinite' : 'none',
+                }}
+              >
+                {loadingPayment
+                  ? (lang === 'es' ? 'PROCESANDO...' : 'PROCESSING...')
+                  : `${t.cuentaCompleteAccess} ${ev.price} ${ev.currency}`
+                }
+              </button>
+            </div>
+          )}
+
+          {/* Payment confirmed section */}
+          {hasPaid && ev.price && (
+            <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'rgba(72,187,120,0.05)', border: '0.5px solid rgba(72,187,120,0.15)', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ ...S, fontSize: '10px', letterSpacing: '0.12em', padding: '4px 10px', borderRadius: '3px', background: 'rgba(72,187,120,0.1)', border: '0.5px solid rgba(72,187,120,0.3)', color: 'rgba(72,187,120,0.9)' }}>
+                {t.cuentaPaymentApproved}
               </span>
-            )}
+              <span style={{ ...S, fontSize: '15px', color: 'rgba(72,187,120,0.8)' }}>
+                {payment?.amount ?? ev.price} {ev.currency}
+              </span>
+            </div>
+          )}
 
-            {/* Location */}
-            {ev.secret_location ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="pulse-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#C9A84C', display: 'inline-block', animation: 'pulse-dot 2s ease-in-out infinite' }} />
-                <span style={{ ...S, fontSize: '12px', color: 'rgba(201,168,76,0.7)', letterSpacing: '0.1em' }}>{t.cuentaSecretLocation}</span>
-              </div>
-            ) : ev.location_address ? (
-              <div style={{ textAlign: 'center' }}>
-                <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.5)', marginBottom: '8px' }}>{ev.location_name ?? ev.location_address}</p>
-                <a
-                  href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_address)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ ...S, fontSize: '11px', color: 'rgba(201,168,76,0.7)', textDecoration: 'none', letterSpacing: '0.08em' }}
-                >
-                  {t.cuentaViewMaps} →
-                </a>
-              </div>
-            ) : null}
-          </div>
-        )}
+          {/* Under review */}
+          {isPending && (
+            <div style={{ marginBottom: '8px' }}>
+              <p style={{ ...S, fontSize: '14px', color: 'var(--bone)', marginBottom: '6px' }}>{t.cuentaUnderReview}</p>
+              <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)' }}>{t.cuentaUnderReviewSub}</p>
+            </div>
+          )}
 
-        {/* ESTADO: DECLINED */}
-        {localStatus === 'declined' && (
-          <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.35)' }}>No asistirás a este evento.</p>
-        )}
+          {/* Invited: confirm/decline */}
+          {isInvited && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={() => handleRsvp('confirmed')}
+                disabled={!!rsvpLoading}
+                style={{ width: '100%', padding: '14px', background: 'rgba(201,168,76,0.1)', border: '0.5px solid rgba(201,168,76,0.4)', borderRadius: '6px', color: '#C9A84C', ...S, fontSize: '13px', letterSpacing: '0.12em', cursor: 'pointer', opacity: rsvpLoading ? 0.6 : 1 }}
+              >
+                {rsvpLoading === 'confirmed' ? '...' : t.cuentaConfirm}
+              </button>
+              <button
+                onClick={() => handleRsvp('declined')}
+                disabled={!!rsvpLoading}
+                style={{ width: '100%', padding: '14px', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.15)', borderRadius: '6px', color: 'rgba(245,240,232,0.4)', ...S, fontSize: '13px', letterSpacing: '0.1em', cursor: 'pointer', opacity: rsvpLoading ? 0.6 : 1 }}
+              >
+                {rsvpLoading === 'declined' ? '...' : t.cuentaDecline}
+              </button>
+            </div>
+          )}
+
+          {/* Confirmed / purchased: QR + location */}
+          {isConfirmedOrPurchased && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <button
+                onClick={() => setShowQrModal(true)}
+                style={{
+                  width: '100%', padding: '14px',
+                  background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.3)',
+                  borderRadius: '6px', color: '#C9A84C',
+                  ...S, fontSize: '11px', letterSpacing: '0.14em',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
+                  <path d="M14 14h2m0 0h2m-2 0v2m0 2v2m2-4h2m-2 2h2" />
+                </svg>
+                {lang === 'es' ? 'MOSTRAR QR DE ACCESO' : 'SHOW ACCESS QR'}
+              </button>
+
+              {ev.secret_location ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', paddingTop: '4px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#C9A84C', display: 'inline-block', flexShrink: 0, animation: 'accountPulseDot 2s ease-in-out infinite' }} />
+                  <span style={{ ...S, fontSize: '12px', color: 'rgba(201,168,76,0.7)', letterSpacing: '0.1em' }}>
+                    {t.cuentaSecretLocation}
+                  </span>
+                </div>
+              ) : ev.location_address ? (
+                <div style={{ textAlign: 'center', borderTop: '0.5px solid rgba(201,168,76,0.1)', paddingTop: '16px' }}>
+                  <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.5)', marginBottom: '8px' }}>
+                    {ev.location_name ?? ev.location_address}
+                  </p>
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent(ev.location_address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ ...S, fontSize: '11px', color: 'rgba(201,168,76,0.7)', textDecoration: 'none', letterSpacing: '0.08em' }}
+                  >
+                    {t.cuentaViewMaps} →
+                  </a>
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {localStatus === 'declined' && (
+            <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.35)' }}>
+              {lang === 'es' ? 'No asistirás a este evento.' : "You won't be attending this event."}
+            </p>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   )
 }
+
+// ─── Account Content ──────────────────────────────────────────────────────────
 
 interface Props {
   registrations: any[]
@@ -239,6 +443,7 @@ interface Props {
 export function AccountContent({ registrations, payments }: Props) {
   const { t, lang } = useI18n()
   const [regs, setRegs] = useState(registrations)
+  const [selectedCity, setSelectedCity] = useState<string>('all')
 
   const paymentByReg = payments.reduce((acc: any, p: any) => {
     if (!acc[p.registration_id] || p.status === 'approved') {
@@ -247,12 +452,20 @@ export function AccountContent({ registrations, payments }: Props) {
     return acc
   }, {})
 
-  const upcomingRegs = regs.filter((r: any) => {
+  // City filter: only show if user has registrations in multiple cities
+  const cities = Array.from(new Set(regs.map((r: any) => r.events?.cities?.name).filter(Boolean))) as string[]
+  const showCityFilter = cities.length > 1
+
+  const filteredRegs = selectedCity === 'all'
+    ? regs
+    : regs.filter((r: any) => r.events?.cities?.name === selectedCity)
+
+  const upcomingRegs = filteredRegs.filter((r: any) => {
     const evStatus = r.events?.status
     return ['active', 'soon'].includes(evStatus ?? '') && r.status !== 'declined'
   })
 
-  const pastRegs = regs.filter((r: any) => {
+  const pastRegs = filteredRegs.filter((r: any) => {
     const evStatus = r.events?.status
     return ['closed', 'archived'].includes(evStatus ?? '')
   })
@@ -299,16 +512,41 @@ export function AccountContent({ registrations, payments }: Props) {
         <div style={{ width: '60px', height: '0.5px', background: 'rgba(201,168,76,0.5)', margin: '16px auto 0' }} />
       </div>
 
+      {/* City filter pills */}
+      {showCityFilter && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', padding: '0 24px 32px' }}>
+          {(['all', ...cities] as string[]).map((c) => {
+            const active = selectedCity === c
+            return (
+              <button
+                key={c}
+                onClick={() => setSelectedCity(c)}
+                style={{
+                  ...S, fontSize: '10px', letterSpacing: '0.14em', textTransform: 'uppercase',
+                  padding: '8px 18px', borderRadius: '20px', cursor: 'pointer',
+                  background: active ? 'rgba(201,168,76,0.12)' : 'transparent',
+                  border: `0.5px solid ${active ? 'rgba(201,168,76,0.4)' : 'rgba(245,240,232,0.15)'}`,
+                  color: active ? '#C9A84C' : 'rgba(245,240,232,0.4)',
+                  transition: 'all 150ms ease',
+                }}
+              >
+                {c === 'all' ? (lang === 'es' ? 'TODAS' : 'ALL') : c.toUpperCase()}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* Content */}
       <div style={{ maxWidth: '560px', margin: '0 auto', padding: '0 clamp(16px,4vw,40px) 80px', display: 'flex', flexDirection: 'column', gap: '40px', alignItems: 'center' }}>
 
-        {regs.length === 0 && (
+        {filteredRegs.filter((r: any) => r.status !== 'declined').length === 0 && (
           <p style={{ ...S, fontSize: '14px', color: 'rgba(245,240,232,0.4)', textAlign: 'center' }}>
             {lang === 'es' ? 'No tenés registros todavía.' : 'No registrations yet.'}
           </p>
         )}
 
-        {/* Upcoming registrations */}
+        {/* Upcoming */}
         {upcomingRegs.length > 0 && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center' }}>
             {upcomingRegs.length > 1 && (
@@ -317,33 +555,34 @@ export function AccountContent({ registrations, payments }: Props) {
               </p>
             )}
             {upcomingRegs.map((r: any) => (
-              <EventCard
-                key={r.id}
-                reg={r}
-                payment={paymentByReg[r.id] ?? null}
-                onRsvp={handleRsvp}
-              />
+              <EventCard key={r.id} reg={r} payment={paymentByReg[r.id] ?? null} onRsvp={handleRsvp} />
             ))}
           </div>
         )}
 
-        {/* Past registrations */}
+        {/* Past */}
         {pastRegs.length > 0 && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
             <p style={{ ...S, fontSize: '10px', letterSpacing: '0.16em', color: 'rgba(245,240,232,0.25)', textTransform: 'uppercase', alignSelf: 'flex-start' }}>
               {t.cuentaPast}
             </p>
             {pastRegs.map((r: any) => (
-              <EventCard
-                key={r.id}
-                reg={r}
-                payment={paymentByReg[r.id] ?? null}
-                onRsvp={handleRsvp}
-              />
+              <EventCard key={r.id} reg={r} payment={paymentByReg[r.id] ?? null} onRsvp={handleRsvp} />
             ))}
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes accountPulseDot {
+          0%, 100% { opacity: 0.6; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.3); }
+        }
+        @keyframes accountPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+      `}</style>
     </div>
   )
 }

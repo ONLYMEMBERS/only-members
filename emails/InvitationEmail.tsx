@@ -11,13 +11,14 @@ interface Props {
   rsvpToken: string
   language?: string
   customBody?: string
+  confirmUrl?: string
 }
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://onlymembers.life'
 
-export function InvitationEmail({ firstName, eventName, city, dateStart, rsvpToken, language = 'es', customBody }: Props) {
+export function InvitationEmail({ firstName, eventName, city, dateStart, rsvpToken, language = 'es', customBody, confirmUrl }: Props) {
   const es = language !== 'en'
-  const confirmedUrl = `${siteUrl}/api/rsvp?token=${rsvpToken}&response=confirmed`
+  const confirmedUrl = confirmUrl ?? `${siteUrl}/api/rsvp?token=${rsvpToken}&response=confirmed`
   const declinedUrl = `${siteUrl}/api/rsvp?token=${rsvpToken}&response=declined`
 
   const dateStr = dateStart

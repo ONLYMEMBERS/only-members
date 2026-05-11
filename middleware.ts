@@ -30,6 +30,11 @@ export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname
   const isLoginPage = pathname === '/admin'
 
+  // Protect /cuenta
+  if (pathname === '/cuenta' && !session) {
+    return NextResponse.redirect(new URL('/?login=true', req.url))
+  }
+
   if (pathname.startsWith('/admin') && !isLoginPage && !session) {
     return NextResponse.redirect(new URL('/admin', req.url))
   }
@@ -39,4 +44,4 @@ export async function middleware(req: NextRequest) {
   return res
 }
 
-export const config = { matcher: ['/admin', '/admin/:path*'] }
+export const config = { matcher: ['/admin', '/admin/:path*', '/cuenta'] }
