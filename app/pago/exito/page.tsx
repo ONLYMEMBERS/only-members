@@ -11,6 +11,14 @@ export default async function PagoExitoPage({ searchParams }: { searchParams: { 
   if (regId) {
     try {
       const admin = createAdminClient()
+
+      // Fallback: mark as purchased if webhook hasn't fired yet
+      await admin
+        .from('registrations')
+        .update({ status: 'purchased', updated_at: new Date().toISOString() })
+        .eq('id', regId)
+        .in('status', ['confirmed', 'invited'])
+
       const { data } = await admin
         .from('registrations')
         .select('id, first_name, last_name, events(name, date_start, cities(name, country))')

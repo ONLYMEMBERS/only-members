@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-browser'
+import { countries } from '@/lib/countries'
 import { Session } from '@supabase/supabase-js'
 import { InvitationsTab } from './AccountContent'
 
@@ -182,6 +183,11 @@ function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; 
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showRegForm, setShowRegForm] = useState(false)
+  const [activeEvents, setActiveEvents] = useState<any[]>([])
+  const [eventsLoading, setEventsLoading] = useState(false)
+  const [regForm, setRegForm] = useState({ firstName: '', lastName: '', phone: '', country: '', city: '', dni: '', gender: '', instagram: '', eventId: '' })
+  const [regSubmitting, setRegSubmitting] = useState(false)
 
   async function checkEmail() {
     if (!emailInput.trim().includes('@')) { setError('Ingresá un email válido'); return }
@@ -220,6 +226,55 @@ function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; 
     }
   }
 
+  async function loadEvents() {
+    setEventsLoading(true)
+    try {
+      const supabase = createClient()
+      const { data: evs } = await supabase
+        .from('events')
+        .select('id, name, cities(name)')
+        .in('status', ['active', 'soon'])
+      setActiveEvents(evs ?? [])
+    } finally {
+      setEventsLoading(false)
+    }
+  }
+
+  async function handleRegSubmit() {
+    setError('')
+    if (!regForm.firstName || !regForm.lastName || !regForm.country || !regForm.dni || !regForm.gender || !regForm.eventId) {
+      setError('Completá todos los campos obligatorios (*)')
+      return
+    }
+    setRegSubmitting(true)
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: regForm.eventId,
+          first_name: regForm.firstName,
+          last_name: regForm.lastName,
+          email: emailInput.trim(),
+          phone: regForm.phone,
+          country: regForm.country,
+          city: regForm.city,
+          dni: regForm.dni,
+          gender: regForm.gender,
+          instagram: regForm.instagram,
+        }),
+      })
+      const d = await res.json()
+      if (d.blocked) { setError('No podemos procesar tu solicitud.'); return }
+      setFirstName(regForm.firstName)
+      setStep('found')
+    } catch {
+      setError('Error al enviar la solicitud. Intentá de nuevo.')
+    } finally {
+      setRegSubmitting(false)
+    }
+  }
+
   const inputStyle: React.CSSProperties = { width: '100%', padding: '12px 16px', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.25)', borderRadius: '8px', color: '#F5F0E8', caretColor: GOLD, ...S, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
   const labelStyle: React.CSSProperties = { ...S, fontSize: '10px', letterSpacing: '0.1em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase' as const, display: 'block', marginBottom: '4px' }
 
@@ -249,14 +304,111 @@ function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; 
       </div>
 
       {step === 'notfound' && (
-        <div style={{ padding: '14px 16px', background: 'rgba(245,240,232,0.04)', border: '0.5px solid rgba(245,240,232,0.1)', borderRadius: '8px' }}>
-          <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.6)', lineHeight: 1.5, marginBottom: '12px' }}>
-            Para crear una cuenta primero registrate a un evento.
-          </p>
-          <Link href="/" style={{ ...S, fontSize: '11px', letterSpacing: '0.12em', color: GOLD, textDecoration: 'none' }}>
-            VER EVENTOS →
-          </Link>
-        </div>
+        !showRegForm ? (
+          <div style={{ padding: '14px 16px', background: 'rgba(245,240,232,0.04)', border: '0.5px solid rgba(245,240,232,0.1)', borderRadius: '8px' }}>
+            <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.6)', lineHeight: 1.5, marginBottom: '12px' }}>
+              Para crear una cuenta primero registrate a un evento.
+            </p>
+            <Link href="/" style={{ ...S, fontSize: '11px', letterSpacing: '0.12em', color: GOLD, textDecoration: 'none' }}>
+              VER EVENTOS →
+            </Link>
+            <div style={{ height: '0.5px', background: 'rgba(245,240,232,0.1)', margin: '14px 0' }} />
+            <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.45)', marginBottom: '10px' }}>
+              ¿Es tu primera vez? Completá tus datos para solicitar acceso.
+            </p>
+            <button
+              onClick={() => { setShowRegForm(true); loadEvents() }}
+              style={{ width: '100%', padding: '11px', background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.3)', borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.1em', cursor: 'pointer' }}
+            >
+              SOLICITAR ACCESO A UN EVENTO
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.7)', lineHeight: 1.5 }}>
+              Completá tus datos para solicitar acceso a un evento.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <label style={labelStyle}>NOMBRE *</label>
+                <input value={regForm.firstName} onChange={e => setRegForm({ ...regForm, firstName: e.target.value })} placeholder="Juan" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>APELLIDO *</label>
+                <input value={regForm.lastName} onChange={e => setRegForm({ ...regForm, lastName: e.target.value })} placeholder="Pérez" style={inputStyle} />
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>TELÉFONO</label>
+              <input value={regForm.phone} onChange={e => setRegForm({ ...regForm, phone: e.target.value })} placeholder="+54 11..." style={inputStyle} />
+            </div>
+
+            <div>
+              <label style={labelStyle}>PAÍS *</label>
+              <select value={regForm.country} onChange={e => setRegForm({ ...regForm, country: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <option value="">Seleccioná tu país</option>
+                {countries.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>CIUDAD</label>
+              <input value={regForm.city} onChange={e => setRegForm({ ...regForm, city: e.target.value })} placeholder="Buenos Aires" style={inputStyle} />
+            </div>
+
+            <div>
+              <label style={labelStyle}>DNI / ID *</label>
+              <input value={regForm.dni} onChange={e => setRegForm({ ...regForm, dni: e.target.value })} placeholder="12.345.678" style={inputStyle} />
+            </div>
+
+            <div>
+              <label style={labelStyle}>GÉNERO *</label>
+              <select value={regForm.gender} onChange={e => setRegForm({ ...regForm, gender: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <option value="">Seleccioná</option>
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+                <option value="NB">No binario</option>
+                <option value="other">Prefiero no decir</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={labelStyle}>INSTAGRAM</label>
+              <input value={regForm.instagram} onChange={e => setRegForm({ ...regForm, instagram: e.target.value })} placeholder="@usuario" style={inputStyle} />
+            </div>
+
+            <div>
+              <label style={labelStyle}>EVENTO *</label>
+              {eventsLoading ? (
+                <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', padding: '8px 0' }}>Cargando eventos...</p>
+              ) : (
+                <select value={regForm.eventId} onChange={e => setRegForm({ ...regForm, eventId: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">Seleccioná un evento</option>
+                  {activeEvents.map(ev => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.name}{(ev.cities as any)?.name ? ` — ${(ev.cities as any).name}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {error && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{error}</p>}
+
+            <button
+              onClick={handleRegSubmit}
+              disabled={regSubmitting}
+              style={{ width: '100%', padding: '13px', background: 'rgba(201,168,76,0.1)', border: '0.5px solid rgba(201,168,76,0.4)', borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.14em', cursor: regSubmitting ? 'wait' : 'pointer', opacity: regSubmitting ? 0.6 : 1 }}
+            >
+              {regSubmitting ? 'ENVIANDO...' : 'ENVIAR SOLICITUD'}
+            </button>
+            <button onClick={() => setShowRegForm(false)} style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'center', padding: 0 }}>
+              ← Volver
+            </button>
+          </div>
+        )
       )}
 
       {step === 'found' && (
@@ -535,12 +687,23 @@ function AccountDashboard({ session }: { session: Session }) {
   const [dataLoading, setDataLoading] = useState(true)
   const [tab, setTab] = useState<'invitations' | 'profile'>('invitations')
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     fetch('/api/cuenta/data')
-      .then((r) => r.json())
-      .then((d) => { setData(d); setDataLoading(false) })
+      .then(r => r.json())
+      .then(d => { setData(d); setDataLoading(false) })
       .catch(() => setDataLoading(false))
-  }, [session.user.email])
+  }, [])
+
+  useEffect(() => { fetchData() }, [session.user.email, fetchData])
+
+  const hasPendingPayments = (data?.payments ?? []).some(p => p.status === 'pending') &&
+    (data?.registrations ?? []).some(r => r.status !== 'purchased')
+
+  useEffect(() => {
+    if (!hasPendingPayments) return
+    const interval = setInterval(fetchData, 30000)
+    return () => clearInterval(interval)
+  }, [hasPendingPayments, fetchData])
 
   const firstName = data?.registrations?.[0]?.first_name ?? session.user.user_metadata?.first_name ?? ''
 

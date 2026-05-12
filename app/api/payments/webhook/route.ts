@@ -47,15 +47,20 @@ export async function POST(req: NextRequest) {
     const mpStatus = mpPaymentData.status as string
     const externalRef = mpPaymentData.external_reference as string
 
-    // Find the payment in our DB by external_reference (registration_id) or preference_id
+    // external_reference = registration_id (set in create-preference)
+    if (!externalRef) {
+      console.error('No external_reference in MP payment:', mpPaymentId)
+      return NextResponse.json({ received: true })
+    }
+
     const { data: payment } = await admin
       .from('payments')
       .select('id, registration_id, event_id, amount')
-      .or(`mp_preference_id.eq.${mpPaymentData.order?.id ?? ''},registration_id.eq.${externalRef}`)
+      .eq('registration_id', externalRef)
       .maybeSingle()
 
     if (!payment) {
-      console.error('Payment not found in DB for external_reference:', externalRef)
+      console.error('Payment not found in DB for registration_id:', externalRef)
       return NextResponse.json({ received: true })
     }
 

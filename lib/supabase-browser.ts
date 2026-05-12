@@ -32,7 +32,7 @@ export function createClient() {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'implicit',
-        storageKey: 'only-members-auth',
+        storageKey: 'om-session',
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       },
     }
