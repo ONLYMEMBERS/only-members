@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase-browser'
 import { useI18n } from '@/lib/i18n'
 
 const S = { fontFamily: 'var(--font-inter)', fontWeight: 300 } as const
-const TTL_MS = 15 * 60 * 1000
 
 // ─── QR Modal ────────────────────────────────────────────────────────────────
 
@@ -17,32 +16,13 @@ function QrModal({ registration, event, lang, onClose }: {
   lang: string
   onClose: () => void
 }) {
-  const [expiry, setExpiry] = useState(() => Date.now() + TTL_MS)
-  const [timeLeft, setTimeLeft] = useState(TTL_MS / 1000)
-
-  useEffect(() => {
-    const tick = setInterval(() => {
-      const remaining = expiry - Date.now()
-      if (remaining <= 0) {
-        const ne = Date.now() + TTL_MS
-        setExpiry(ne)
-        setTimeLeft(TTL_MS / 1000)
-      } else {
-        setTimeLeft(Math.ceil(remaining / 1000))
-      }
-    }, 1000)
-    return () => clearInterval(tick)
-  }, [expiry])
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const qrContent = btoa(JSON.stringify({ rid: registration.id, exp: expiry, v: 1 }))
-  const pct = (timeLeft / (TTL_MS / 1000)) * 100
-
+  const city = event.cities?.name ?? ''
   const dateStr = event.date_start
     ? new Date(event.date_start).toLocaleDateString(lang === 'es' ? 'es-ES' : 'en-US', {
         day: '2-digit', month: 'long', year: 'numeric',
@@ -50,8 +30,13 @@ function QrModal({ registration, event, lang, onClose }: {
       })
     : ''
 
-  const mins = Math.floor(timeLeft / 60)
-  const secs = String(timeLeft % 60).padStart(2, '0')
+  const qrValue = btoa(unescape(encodeURIComponent(JSON.stringify({
+    id: registration.id,
+    name: `${registration.first_name} ${registration.last_name}`,
+    dni: registration.dni,
+    event: event.name,
+    email: registration.email,
+  }))))
 
   return (
     <div
@@ -59,15 +44,15 @@ function QrModal({ registration, event, lang, onClose }: {
         position: 'fixed', inset: 0, zIndex: 9998,
         background: 'rgba(5,5,10,0.97)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        flexDirection: 'column',
-        padding: '32px',
+        padding: '32px 24px',
+        overflowY: 'auto',
       }}
       onClick={onClose}
     >
       <button
         onClick={onClose}
         style={{
-          position: 'absolute', top: '24px', right: '24px',
+          position: 'fixed', top: '24px', right: '24px',
           background: 'transparent', border: 'none', cursor: 'pointer',
           color: 'rgba(245,240,232,0.5)', fontSize: '32px', lineHeight: 1, padding: '8px',
         }}
@@ -77,40 +62,54 @@ function QrModal({ registration, event, lang, onClose }: {
 
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', maxWidth: '360px', width: '100%' }}
+        style={{
+          maxWidth: '360px', width: '100%',
+          background: '#0F0F1A',
+          border: '0.5px solid rgba(201,168,76,0.2)',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          margin: 'auto',
+        }}
       >
-        <p style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color: '#F5F0E8', textAlign: 'center', margin: 0 }}>
-          {registration.first_name} {registration.last_name}
-        </p>
-
-        <div style={{ padding: '16px', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '12px' }}>
-          <QRCodeSVG value={qrContent} size={300} bgColor="transparent" fgColor="#F5F0E8" level="H" />
-        </div>
-
-        <div style={{ width: '100%' }}>
-          <div style={{ width: '100%', height: '2px', background: 'rgba(245,240,232,0.08)', borderRadius: '1px', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: `${pct}%`,
-              background: pct > 30 ? '#C9A84C' : '#e57373',
-              transition: 'width 1s linear',
-              borderRadius: '1px',
-            }} />
-          </div>
-          <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.3)', textAlign: 'center', marginTop: '8px', letterSpacing: '0.06em' }}>
-            {lang === 'es' ? 'Válido por' : 'Valid for'} {mins}:{secs}
+        {/* Header */}
+        <div style={{ padding: '20px 24px', textAlign: 'center', borderBottom: '0.5px solid rgba(201,168,76,0.15)' }}>
+          <p style={{ ...S, fontSize: '9px', letterSpacing: '0.2em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase', marginBottom: '10px' }}>
+            ONLY MEMBERS
           </p>
-        </div>
-
-        <div style={{ textAlign: 'center' }}>
-          <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.6)', letterSpacing: '0.06em', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '20px', color: '#F5F0E8', margin: '0 0 6px' }}>
             {event.name}
           </p>
-          {dateStr && (
-            <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.35)', letterSpacing: '0.04em', marginTop: '4px' }}>
-              {dateStr}
-            </p>
+          <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', margin: 0 }}>
+            {city && dateStr ? `${city} · ${dateStr}` : city || dateStr}
+          </p>
+        </div>
+
+        {/* QR */}
+        <div style={{ padding: '28px 24px', display: 'flex', justifyContent: 'center', borderBottom: '0.5px solid rgba(201,168,76,0.15)' }}>
+          <QRCodeSVG value={qrValue} size={280} bgColor="transparent" fgColor="#F5F0E8" level="H" />
+        </div>
+
+        {/* Identity */}
+        <div style={{ padding: '20px 24px', borderBottom: '0.5px solid rgba(201,168,76,0.15)', textAlign: 'center' }}>
+          <p style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '20px', color: '#F5F0E8', margin: '0 0 10px' }}>
+            {registration.first_name} {registration.last_name}
+          </p>
+          {registration.dni && (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', justifyContent: 'center', marginBottom: '6px' }}>
+              <span style={{ ...S, fontSize: '10px', letterSpacing: '0.1em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase' }}>DNI / ID:</span>
+              <span style={{ fontFamily: 'var(--font-inter)', fontWeight: 500, fontSize: '13px', color: '#F5F0E8' }}>{registration.dni}</span>
+            </div>
           )}
+          <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.5)', margin: 0 }}>
+            {registration.email}
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '16px 24px', textAlign: 'center' }}>
+          <p style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', lineHeight: 1.5, margin: 0 }}>
+            Mostrá este código en la entrada.
+          </p>
         </div>
       </div>
     </div>
@@ -149,6 +148,8 @@ function EventCard({ reg, payment, onRsvp }: {
   const isPending = localStatus === 'pending' || localStatus === 'waitlist'
   const hasPaid = payment?.status === 'approved'
   const hasPayment = reg.paymentAvailable && ev.price && !hasPaid && (isInvited || localStatus === 'confirmed')
+  const canShowQR = localStatus === 'purchased' || (localStatus === 'confirmed' && !ev.payments_enabled)
+  const confirmedNeedsPay = localStatus === 'confirmed' && ev.payments_enabled && !!ev.price
 
   const statusBadge: Record<string, { label: string; color: string }> = {
     invited: { label: lang === 'es' ? 'INVITACIÓN EXCLUSIVA' : 'EXCLUSIVE INVITATION', color: 'rgba(201,168,76,0.7)' },
@@ -380,22 +381,28 @@ function EventCard({ reg, payment, onRsvp }: {
           {/* Confirmed / purchased: QR + location */}
           {isConfirmedOrPurchased && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <button
-                onClick={() => setShowQrModal(true)}
-                style={{
-                  width: '100%', padding: '14px',
-                  background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.3)',
-                  borderRadius: '6px', color: '#C9A84C',
-                  ...S, fontSize: '11px', letterSpacing: '0.14em',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                }}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
-                  <path d="M14 14h2m0 0h2m-2 0v2m0 2v2m2-4h2m-2 2h2" />
-                </svg>
-                {lang === 'es' ? 'MOSTRAR QR DE ACCESO' : 'SHOW ACCESS QR'}
-              </button>
+              {canShowQR ? (
+                <button
+                  onClick={() => setShowQrModal(true)}
+                  style={{
+                    width: '100%', padding: '14px',
+                    background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.3)',
+                    borderRadius: '6px', color: '#C9A84C',
+                    ...S, fontSize: '11px', letterSpacing: '0.14em',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
+                    <path d="M14 14h2m0 0h2m-2 0v2m0 2v2m2-4h2m-2 2h2" />
+                  </svg>
+                  {lang === 'es' ? 'MOSTRAR QR DE ACCESO' : 'SHOW ACCESS QR'}
+                </button>
+              ) : confirmedNeedsPay ? (
+                <p style={{ ...S, fontSize: '12px', color: 'rgba(201,168,76,0.6)', textAlign: 'center', lineHeight: 1.6, padding: '10px 0', margin: 0 }}>
+                  {lang === 'es' ? 'Completá el pago para desbloquear tu QR de acceso.' : 'Complete payment to unlock your access QR.'}
+                </p>
+              ) : null}
 
               {ev.secret_location ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', paddingTop: '4px' }}>
@@ -433,12 +440,120 @@ function EventCard({ reg, payment, onRsvp }: {
   )
 }
 
-// ─── Account Content ──────────────────────────────────────────────────────────
+// ─── Shared types ────────────────────────────────────────────────────────────
 
 interface Props {
   registrations: any[]
   payments: any[]
 }
+
+// ─── Invitations Tab (used by new page.tsx) ───────────────────────────────────
+
+export function InvitationsTab({ registrations, payments }: Props) {
+  const { t, lang } = useI18n()
+  const [regs, setRegs] = useState(registrations)
+  const [selectedCity, setSelectedCity] = useState<string>('all')
+
+  const paymentByReg = payments.reduce((acc: any, p: any) => {
+    if (!acc[p.registration_id] || p.status === 'approved') {
+      acc[p.registration_id] = p
+    }
+    return acc
+  }, {})
+
+  const cities = Array.from(new Set(regs.map((r: any) => r.events?.cities?.name).filter(Boolean))) as string[]
+  const showCityFilter = cities.length > 1
+
+  const filteredRegs = selectedCity === 'all'
+    ? regs
+    : regs.filter((r: any) => r.events?.cities?.name === selectedCity)
+
+  const upcomingRegs = filteredRegs.filter((r: any) => {
+    const evStatus = r.events?.status
+    return ['active', 'soon'].includes(evStatus ?? '') && r.status !== 'declined'
+  })
+
+  const pastRegs = filteredRegs.filter((r: any) => {
+    const evStatus = r.events?.status
+    return ['closed', 'archived'].includes(evStatus ?? '')
+  })
+
+  function handleRsvp(token: string, response: 'confirmed' | 'declined') {
+    setRegs((prev) => prev.map((r: any) => r.rsvp_token === token ? { ...r, status: response } : r))
+  }
+
+  return (
+    <div style={{ maxWidth: '560px', margin: '0 auto', padding: '0 clamp(16px,4vw,40px) 40px', display: 'flex', flexDirection: 'column', gap: '32px', alignItems: 'center' }}>
+
+      {showCityFilter && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
+          {(['all', ...cities] as string[]).map((c) => {
+            const active = selectedCity === c
+            return (
+              <button
+                key={c}
+                onClick={() => setSelectedCity(c)}
+                style={{
+                  ...S, fontSize: '10px', letterSpacing: '0.14em', textTransform: 'uppercase',
+                  padding: '8px 18px', borderRadius: '20px', cursor: 'pointer',
+                  background: active ? 'rgba(201,168,76,0.12)' : 'transparent',
+                  border: `0.5px solid ${active ? 'rgba(201,168,76,0.4)' : 'rgba(245,240,232,0.15)'}`,
+                  color: active ? '#C9A84C' : 'rgba(245,240,232,0.4)',
+                  transition: 'all 150ms ease',
+                }}
+              >
+                {c === 'all' ? (lang === 'es' ? 'TODAS' : 'ALL') : c.toUpperCase()}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {filteredRegs.filter((r: any) => r.status !== 'declined').length === 0 && (
+        <p style={{ ...S, fontSize: '14px', color: 'rgba(245,240,232,0.4)', textAlign: 'center' }}>
+          {lang === 'es' ? 'No tenés registros todavía.' : 'No registrations yet.'}
+        </p>
+      )}
+
+      {upcomingRegs.length > 0 && (
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center' }}>
+          {upcomingRegs.length > 1 && (
+            <p style={{ ...S, fontSize: '10px', letterSpacing: '0.16em', color: 'rgba(201,168,76,0.4)', textTransform: 'uppercase', alignSelf: 'flex-start' }}>
+              {t.cuentaUpcoming}
+            </p>
+          )}
+          {upcomingRegs.map((r: any) => (
+            <EventCard key={r.id} reg={r} payment={paymentByReg[r.id] ?? null} onRsvp={handleRsvp} />
+          ))}
+        </div>
+      )}
+
+      {pastRegs.length > 0 && (
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+          <p style={{ ...S, fontSize: '10px', letterSpacing: '0.16em', color: 'rgba(245,240,232,0.25)', textTransform: 'uppercase', alignSelf: 'flex-start' }}>
+            {t.cuentaPast}
+          </p>
+          {pastRegs.map((r: any) => (
+            <EventCard key={r.id} reg={r} payment={paymentByReg[r.id] ?? null} onRsvp={handleRsvp} />
+          ))}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes accountPulseDot {
+          0%, 100% { opacity: 0.6; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.3); }
+        }
+        @keyframes accountPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+// ─── Account Content (legacy full-page) ───────────────────────────────────────
 
 export function AccountContent({ registrations, payments }: Props) {
   const { t, lang } = useI18n()

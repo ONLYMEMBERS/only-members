@@ -1,115 +1,598 @@
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { createAdminClient } from '@/lib/supabase-admin'
-import { AccountContent } from './AccountContent'
+'use client'
 
-export const dynamic = 'force-dynamic'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase-browser'
+import { Session } from '@supabase/supabase-js'
+import { InvitationsTab } from './AccountContent'
 
-export default async function CuentaPage() {
-  const siteConfigured = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+const S = { fontFamily: 'var(--font-inter)', fontWeight: 300 } as const
+const GOLD = '#C9A84C'
 
-  if (!siteConfigured) {
-    redirect('/')
-  }
+// ── Spinner ──────────────────────────────────────────────────────────────────
 
-  const cookieStore = cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll() {},
-      },
-    }
+function Spinner() {
+  return (
+    <div style={{ minHeight: '100vh', background: '#0A0A0F', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ width: '36px', height: '36px', border: '0.5px solid rgba(201,168,76,0.2)', borderTop: `0.5px solid ${GOLD}`, borderRadius: '50%', animation: 'cuentaSpin 1s linear infinite' }} />
+      <style>{`@keyframes cuentaSpin { to { transform: rotate(360deg) } }`}</style>
+    </div>
   )
+}
 
-  const { data: { session } } = await supabase.auth.getSession()
+// ── Auth Panel — no session ───────────────────────────────────────────────────
 
-  if (!session) {
-    redirect('/')
+function LoginSection({ onSuccess }: { onSuccess: () => void }) {
+  const [view, setView] = useState<'normal' | 'reset'>('normal')
+  // Password login
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPwd, setShowPwd] = useState(false)
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  // Reset
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+  const [resetError, setResetError] = useState('')
+  // Magic link
+  const [magicEmail, setMagicEmail] = useState('')
+  const [magicLoading, setMagicLoading] = useState(false)
+  const [magicSent, setMagicSent] = useState(false)
+  const [magicError, setMagicError] = useState('')
+
+  async function handleLogin() {
+    if (!email || !password) { setLoginError('Completá email y contraseña'); return }
+    setLoginLoading(true)
+    setLoginError('')
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      if (error) {
+        setLoginError('Email o contraseña incorrectos. Si nunca creaste contraseña, usá el link de acceso.')
+      } else {
+        onSuccess()
+      }
+    } finally {
+      setLoginLoading(false)
+    }
   }
 
-  let registrations: any[] = []
-  let payments: any[] = []
-  const paymentAccountsMap: Record<string, boolean> = {}
-
-  try {
-    const admin = createAdminClient()
-
-    const { data: regs } = await admin
-      .from('registrations')
-      .select(`
-        id, first_name, last_name, email, status, rsvp_token, created_at,
-        events (
-          id, name, date_start, date_end, timezone, status,
-          secret_location, location_name, location_address,
-          price, currency, payments_enabled, payment_account_id, cover_image,
-          cities ( name, country )
-        )
-      `)
-      .eq('email', session.user.email!)
-      .order('created_at', { ascending: false })
-
-    registrations = regs ?? []
-
-    // Fetch payments
-    const regIds = registrations.map((r: any) => r.id)
-    if (regIds.length > 0) {
-      const { data: pays } = await admin
-        .from('payments')
-        .select('*')
-        .in('registration_id', regIds)
-      payments = pays ?? []
+  async function handleReset() {
+    if (!resetEmail || !resetEmail.includes('@')) { setResetError('Ingresá un email válido'); return }
+    setResetLoading(true)
+    setResetError('')
+    try {
+      const res = await fetch('/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: resetEmail }) })
+      if (res.ok) { setResetSent(true) } else { setResetError('No pudimos enviar el email. Intentá de nuevo.') }
+    } finally {
+      setResetLoading(false)
     }
+  }
 
-    // Check which payment accounts have mp_access_token
-    const accountIds = registrations
-      .map((r: any) => r.events?.payment_account_id)
-      .filter(Boolean) as string[]
-
-    // Check main account
-    const { data: mainAcct } = await admin
-      .from('payment_accounts')
-      .select('id, mp_access_token')
-      .eq('is_main_account', true)
-      .eq('active', true)
-      .maybeSingle()
-
-    const mainHasToken = !!(mainAcct?.mp_access_token || process.env.MP_ACCESS_TOKEN)
-
-    if (accountIds.length > 0) {
-      const { data: accts } = await admin
-        .from('payment_accounts')
-        .select('id, mp_access_token')
-        .in('id', accountIds)
-      ;(accts ?? []).forEach((a: any) => {
-        paymentAccountsMap[a.id] = !!(a.mp_access_token)
-      })
-    }
-
-    // Mark registrations for payment availability
-    registrations = registrations.map((r: any) => {
-      const ev = r.events
-      let paymentAvailable = false
-      if (ev?.payments_enabled && ev?.price) {
-        if (ev.payment_account_id) {
-          paymentAvailable = paymentAccountsMap[ev.payment_account_id] ?? false
-        } else {
-          paymentAvailable = mainHasToken
-        }
+  async function handleMagicLink() {
+    if (!magicEmail || !magicEmail.includes('@')) { setMagicError('Ingresá un email válido'); return }
+    setMagicLoading(true)
+    setMagicError('')
+    try {
+      const res = await fetch('/api/auth/magic-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: magicEmail }) })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setMagicSent(true)
+      } else if (res.status === 404) {
+        setMagicError('No encontramos este email. ¿Querés registrarte a un evento?')
+      } else {
+        setMagicError(data.error || 'No pudimos enviar el link.')
       }
-      return { ...r, paymentAvailable }
-    })
-  } catch (err) {
-    console.error('cuenta page fetch:', err)
+    } finally {
+      setMagicLoading(false)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '12px 16px', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.25)', borderRadius: '8px', color: '#F5F0E8', caretColor: GOLD, ...S, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
+
+  if (view === 'reset') {
+    return (
+      <div>
+        <button onClick={() => setView('normal')} style={{ ...S, fontSize: '12px', color: 'rgba(201,168,76,0.6)', background: 'transparent', border: 'none', cursor: 'pointer', marginBottom: '20px', padding: 0 }}>
+          ← Volver al login
+        </button>
+        <h3 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color: '#F5F0E8', marginBottom: '8px' }}>Restablecer contraseña</h3>
+        <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.5)', lineHeight: 1.5, marginBottom: '20px' }}>
+          Ingresá tu email y te enviamos un link para crear una nueva contraseña.
+        </p>
+        {resetSent ? (
+          <p style={{ ...S, fontSize: '13px', color: 'rgba(72,187,120,0.9)', lineHeight: 1.5 }}>
+            Revisá tu email para restablecer tu contraseña.
+          </p>
+        ) : (
+          <>
+            <input type="email" placeholder="tu@email.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleReset()} style={{ ...inputStyle, marginBottom: '12px' }} />
+            {resetError && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)', marginBottom: '10px' }}>{resetError}</p>}
+            <button onClick={handleReset} disabled={resetLoading} style={{ width: '100%', padding: '13px', background: 'rgba(201,168,76,0.08)', border: `0.5px solid rgba(201,168,76,0.35)`, borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.14em', cursor: resetLoading ? 'wait' : 'pointer', opacity: resetLoading ? 0.6 : 1 }}>
+              {resetLoading ? 'ENVIANDO...' : 'ENVIAR LINK DE RESET'}
+            </button>
+          </>
+        )}
+      </div>
+    )
   }
 
   return (
-    <AccountContent
-      registrations={registrations}
-      payments={payments}
-    />
+    <div>
+      {/* Password login */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} autoFocus />
+        <div style={{ position: 'relative' }}>
+          <input type={showPwd ? 'text' : 'password'} placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} style={{ ...inputStyle, paddingRight: '44px' }} />
+          <button type="button" onClick={() => setShowPwd(!showPwd)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(245,240,232,0.4)', display: 'flex', padding: '4px' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              {showPwd ? <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></> : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}
+            </svg>
+          </button>
+        </div>
+        {loginError && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{loginError}</p>}
+        <button onClick={handleLogin} disabled={loginLoading} style={{ width: '100%', padding: '13px', background: 'rgba(201,168,76,0.1)', border: `0.5px solid rgba(201,168,76,0.4)`, borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.14em', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading ? 0.6 : 1 }}>
+          {loginLoading ? 'INGRESANDO...' : 'INGRESAR'}
+        </button>
+        <button onClick={() => setView('reset')} style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'right', padding: 0 }}>
+          ¿Olvidaste tu contraseña?
+        </button>
+      </div>
+
+      {/* Separator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '20px 0' }}>
+        <div style={{ flex: 1, height: '0.5px', background: 'rgba(201,168,76,0.15)' }} />
+        <span style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.3)' }}>o</span>
+        <div style={{ flex: 1, height: '0.5px', background: 'rgba(201,168,76,0.15)' }} />
+      </div>
+
+      {/* Magic link */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {magicSent ? (
+          <p style={{ ...S, fontSize: '13px', color: 'rgba(72,187,120,0.9)', lineHeight: 1.5, textAlign: 'center' }}>
+            Revisá tu email. El link llega en segundos.
+          </p>
+        ) : (
+          <>
+            <input type="email" placeholder="Email para link de acceso" value={magicEmail} onChange={(e) => setMagicEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleMagicLink()} style={inputStyle} />
+            {magicError && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{magicError}</p>}
+            <button onClick={handleMagicLink} disabled={magicLoading} style={{ width: '100%', padding: '13px', background: 'transparent', border: `0.5px solid rgba(245,240,232,0.15)`, borderRadius: '8px', color: 'rgba(245,240,232,0.6)', ...S, fontSize: '11px', letterSpacing: '0.12em', cursor: magicLoading ? 'wait' : 'pointer', opacity: magicLoading ? 0.6 : 1 }}>
+              {magicLoading ? 'ENVIANDO...' : 'ENVIAR LINK DE ACCESO INSTANTÁNEO'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
   )
+}
+
+function SignupSection({ onSuccess }: { onSuccess: () => void }) {
+  const [emailInput, setEmailInput] = useState('')
+  const [checking, setChecking] = useState(false)
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'found' | 'notfound'>('idle')
+  const [firstName, setFirstName] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPwd, setShowPwd] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const checkEmail = useCallback(async () => {
+    if (!emailInput.includes('@')) return
+    setChecking(true)
+    try {
+      const res = await fetch(`/api/auth/check-email?email=${encodeURIComponent(emailInput.trim())}`)
+      const data = await res.json()
+      if (data.exists) {
+        setEmailStatus('found')
+        setFirstName(data.firstName ?? '')
+      } else {
+        setEmailStatus('notfound')
+      }
+    } finally {
+      setChecking(false)
+    }
+  }, [emailInput])
+
+  async function handleSignup() {
+    if (!password) { setError('Ingresá una contraseña'); return }
+    if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
+    if (password !== confirmPassword) { setError('Las contraseñas no coinciden'); return }
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: emailInput.trim(), password }) })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error || 'Error al crear la cuenta'); return }
+      // Auto sign in
+      const supabase = createClient()
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: emailInput.trim(), password })
+      if (signInError) { setError(signInError.message); return }
+      onSuccess()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '12px 16px', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.25)', borderRadius: '8px', color: '#F5F0E8', caretColor: GOLD, ...S, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div>
+        <input type="email" placeholder="Tu email" value={emailInput} onChange={(e) => { setEmailInput(e.target.value); setEmailStatus('idle') }} onBlur={checkEmail} style={inputStyle} />
+        {checking && <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.4)', marginTop: '6px' }}>Verificando...</p>}
+      </div>
+
+      {emailStatus === 'notfound' && (
+        <div style={{ padding: '14px 16px', background: 'rgba(245,240,232,0.04)', border: '0.5px solid rgba(245,240,232,0.1)', borderRadius: '8px' }}>
+          <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.6)', lineHeight: 1.5, marginBottom: '12px' }}>
+            Para crear una cuenta primero registrate a un evento.
+          </p>
+          <Link href="/" style={{ ...S, fontSize: '11px', letterSpacing: '0.12em', color: GOLD, textDecoration: 'none' }}>
+            VER EVENTOS →
+          </Link>
+        </div>
+      )}
+
+      {emailStatus === 'found' && (
+        <>
+          <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.7)', lineHeight: 1.5 }}>
+            {firstName ? `Hola, ${firstName}. ` : ''}Encontramos tu solicitud. Solo necesitamos tu contraseña.
+          </p>
+          <div style={{ position: 'relative' }}>
+            <input type={showPwd ? 'text' : 'password'} placeholder="Contraseña (mín. 6 caracteres)" value={password} onChange={(e) => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: '44px' }} />
+            <button type="button" onClick={() => setShowPwd(!showPwd)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(245,240,232,0.4)', display: 'flex', padding: '4px' }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                {showPwd ? <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></> : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}
+              </svg>
+            </button>
+          </div>
+          <input type={showPwd ? 'text' : 'password'} placeholder="Confirmar contraseña" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSignup()} style={inputStyle} />
+          {error && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{error}</p>}
+          <button onClick={handleSignup} disabled={loading} style={{ width: '100%', padding: '13px', background: 'rgba(201,168,76,0.1)', border: `0.5px solid rgba(201,168,76,0.4)`, borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.14em', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            {loading ? 'CREANDO CUENTA...' : 'CREAR CUENTA'}
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+function AuthPanel() {
+  const [tab, setTab] = useState<'login' | 'signup'>('login')
+  // onSuccess is handled by session subscription in parent
+  const handleSuccess = () => { /* session subscription fires automatically */ }
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#0A0A0F', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div style={{ maxWidth: '440px', width: '100%', background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '16px', padding: 'clamp(28px,5vw,44px)', position: 'relative' }}>
+
+        <Link href="/" style={{ position: 'absolute', top: '20px', left: '20px', ...S, fontSize: '9px', letterSpacing: '0.16em', color: 'rgba(201,168,76,0.4)', textDecoration: 'none' }}>
+          ← ONLY MEMBERS
+        </Link>
+
+        <p style={{ ...S, fontSize: '9px', letterSpacing: '0.2em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase', marginBottom: '20px', textAlign: 'center', marginTop: '8px' }}>
+          ONLY MEMBERS
+        </p>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '28px' }}>
+          {(['login', 'signup'] as const).map((t) => {
+            const active = tab === t
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: '8px', cursor: 'pointer',
+                  background: active ? 'rgba(201,168,76,0.1)' : 'transparent',
+                  border: `0.5px solid ${active ? 'rgba(201,168,76,0.35)' : 'rgba(245,240,232,0.1)'}`,
+                  color: active ? GOLD : 'rgba(245,240,232,0.4)',
+                  ...S, fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase',
+                  transition: 'all 150ms ease',
+                }}
+              >
+                {t === 'login' ? 'INICIAR SESIÓN' : 'CREAR CUENTA'}
+              </button>
+            )
+          })}
+        </div>
+
+        {tab === 'login'
+          ? <LoginSection onSuccess={handleSuccess} />
+          : <SignupSection onSuccess={handleSuccess} />
+        }
+      </div>
+    </div>
+  )
+}
+
+// ── Profile Tab ───────────────────────────────────────────────────────────────
+
+function ProfileTab({ session, registration }: { session: Session; registration: any }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({
+    phone: registration?.phone ?? '',
+    country: registration?.country ?? '',
+    city: registration?.city ?? '',
+    instagram: registration?.instagram ?? '',
+  })
+  const [saveLoading, setSaveLoading] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [saveError, setSaveError] = useState('')
+
+  const [pwdStep, setPwdStep] = useState<'idle' | 'confirm' | 'sent'>('idle')
+  const [pwdLoading, setPwdLoading] = useState(false)
+
+  async function handleSaveProfile() {
+    setSaveLoading(true)
+    setSaveSuccess(false)
+    setSaveError('')
+    try {
+      const res = await fetch('/api/auth/update-profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (res.ok) { setSaveSuccess(true); setEditing(false) }
+      else { setSaveError('No pudimos guardar los cambios.') }
+    } finally {
+      setSaveLoading(false)
+    }
+  }
+
+  async function handleSendResetLink() {
+    setPwdLoading(true)
+    const res = await fetch('/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: session.user.email }) })
+    setPwdLoading(false)
+    if (res.ok) setPwdStep('sent')
+  }
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = '/'
+  }
+
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '6px', color: '#F5F0E8', caretColor: GOLD, ...S, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
+  const labelStyle: React.CSSProperties = { ...S, fontSize: '10px', letterSpacing: '0.1em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }
+  const valueStyle: React.CSSProperties = { ...S, fontSize: '14px', color: '#F5F0E8', padding: '10px 0', borderBottom: '0.5px solid rgba(201,168,76,0.1)' }
+
+  return (
+    <div style={{ maxWidth: '480px', margin: '0 auto', padding: '0 clamp(16px,4vw,40px) 80px' }}>
+
+      {/* Personal data */}
+      <div style={{ marginBottom: '32px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <p style={{ ...S, fontSize: '11px', letterSpacing: '0.16em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase' }}>DATOS PERSONALES</p>
+          {!editing && (
+            <button onClick={() => setEditing(true)} style={{ ...S, fontSize: '10px', letterSpacing: '0.1em', color: 'rgba(245,240,232,0.5)', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.15)', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer' }}>
+              EDITAR
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Name (read-only) */}
+          <div>
+            <span style={labelStyle}>NOMBRE</span>
+            <p style={valueStyle}>{registration?.first_name ?? ''} {registration?.last_name ?? ''}</p>
+          </div>
+
+          {/* Email (read-only) */}
+          <div>
+            <span style={labelStyle}>EMAIL</span>
+            <p style={valueStyle}>{session.user.email}</p>
+          </div>
+
+          {editing ? (
+            <>
+              <div>
+                <label style={labelStyle}>TELÉFONO</label>
+                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+54 11..." style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>PAÍS</label>
+                <input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} placeholder="Argentina" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>CIUDAD</label>
+                <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} placeholder="Buenos Aires" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>INSTAGRAM</label>
+                <input value={form.instagram} onChange={(e) => setForm({ ...form, instagram: e.target.value })} placeholder="@usuario" style={inputStyle} />
+              </div>
+              {saveError && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{saveError}</p>}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={handleSaveProfile} disabled={saveLoading} style={{ flex: 1, padding: '12px', background: 'rgba(201,168,76,0.1)', border: `0.5px solid rgba(201,168,76,0.4)`, borderRadius: '6px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.12em', cursor: saveLoading ? 'wait' : 'pointer', opacity: saveLoading ? 0.6 : 1 }}>
+                  {saveLoading ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
+                </button>
+                <button onClick={() => setEditing(false)} style={{ padding: '12px 16px', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.15)', borderRadius: '6px', color: 'rgba(245,240,232,0.4)', ...S, fontSize: '11px', cursor: 'pointer' }}>
+                  CANCELAR
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {[
+                { label: 'TELÉFONO', value: form.phone },
+                { label: 'PAÍS', value: form.country },
+                { label: 'CIUDAD', value: form.city },
+                { label: 'INSTAGRAM', value: form.instagram },
+                { label: 'DNI', value: registration?.dni ? `****${String(registration.dni).slice(-4)}` : '—' },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <span style={labelStyle}>{label}</span>
+                  <p style={valueStyle}>{value || '—'}</p>
+                </div>
+              ))}
+            </>
+          )}
+
+          {saveSuccess && !editing && (
+            <p style={{ ...S, fontSize: '12px', color: 'rgba(72,187,120,0.9)' }}>Perfil actualizado correctamente.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Separator */}
+      <div style={{ height: '0.5px', background: 'rgba(201,168,76,0.15)', marginBottom: '28px' }} />
+
+      {/* Security */}
+      <div style={{ marginBottom: '32px' }}>
+        <p style={{ ...S, fontSize: '11px', letterSpacing: '0.16em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase', marginBottom: '20px' }}>SEGURIDAD</p>
+
+        {pwdStep === 'idle' && (
+          <button onClick={() => setPwdStep('confirm')} style={{ ...S, fontSize: '11px', letterSpacing: '0.1em', color: 'rgba(245,240,232,0.6)', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.15)', borderRadius: '6px', padding: '12px 16px', cursor: 'pointer' }}>
+            CAMBIAR CONTRASEÑA
+          </button>
+        )}
+
+        {pwdStep === 'confirm' && (
+          <div style={{ padding: '16px', background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.7)', lineHeight: 1.6, margin: 0 }}>
+              Para cambiar tu contraseña, primero confirmaremos tu identidad enviando un link a:
+            </p>
+            <p style={{ ...S, fontSize: '13px', color: '#F5F0E8', margin: 0 }}>{session.user.email}</p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={handleSendResetLink}
+                disabled={pwdLoading}
+                style={{ flex: 1, padding: '12px', background: 'rgba(201,168,76,0.1)', border: `0.5px solid rgba(201,168,76,0.4)`, borderRadius: '6px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.12em', cursor: pwdLoading ? 'wait' : 'pointer', opacity: pwdLoading ? 0.6 : 1 }}
+              >
+                {pwdLoading ? 'ENVIANDO...' : 'ENVIAR CONFIRMACIÓN AL EMAIL'}
+              </button>
+              <button onClick={() => setPwdStep('idle')} style={{ padding: '12px 14px', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.15)', borderRadius: '6px', color: 'rgba(245,240,232,0.4)', ...S, fontSize: '11px', cursor: 'pointer' }}>
+                CANCELAR
+              </button>
+            </div>
+          </div>
+        )}
+
+        {pwdStep === 'sent' && (
+          <p style={{ ...S, fontSize: '13px', color: 'rgba(72,187,120,0.9)', lineHeight: 1.5 }}>
+            Revisá tu email. Te enviamos un link para cambiar tu contraseña.
+          </p>
+        )}
+      </div>
+
+      {/* Separator */}
+      <div style={{ height: '0.5px', background: 'rgba(201,168,76,0.1)', marginBottom: '24px' }} />
+
+      {/* Logout */}
+      <button
+        onClick={handleLogout}
+        style={{ width: '100%', padding: '13px', background: 'transparent', border: '0.5px solid rgba(229,115,115,0.3)', borderRadius: '8px', color: 'rgba(229,115,115,0.7)', ...S, fontSize: '11px', letterSpacing: '0.12em', cursor: 'pointer', transition: 'all 150ms ease' }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(229,115,115,0.06)'; e.currentTarget.style.borderColor = 'rgba(229,115,115,0.5)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(229,115,115,0.3)' }}
+      >
+        CERRAR SESIÓN
+      </button>
+    </div>
+  )
+}
+
+// ── Account Dashboard — with session ─────────────────────────────────────────
+
+function AccountDashboard({ session }: { session: Session }) {
+  const [data, setData] = useState<{ registrations: any[]; payments: any[] } | null>(null)
+  const [dataLoading, setDataLoading] = useState(true)
+  const [tab, setTab] = useState<'invitations' | 'profile'>('invitations')
+
+  useEffect(() => {
+    fetch('/api/cuenta/data')
+      .then((r) => r.json())
+      .then((d) => { setData(d); setDataLoading(false) })
+      .catch(() => setDataLoading(false))
+  }, [session.user.email])
+
+  const firstName = data?.registrations?.[0]?.first_name ?? session.user.user_metadata?.first_name ?? ''
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#0A0A0F', color: '#F5F0E8' }}>
+      {/* Header */}
+      <div style={{ padding: '24px clamp(20px,5vw,48px) 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Link href="/" style={{ ...S, fontSize: '11px', letterSpacing: '0.12em', color: 'rgba(201,168,76,0.6)', textDecoration: 'none' }}>
+          ← ONLY MEMBERS
+        </Link>
+      </div>
+
+      {/* Greeting */}
+      <div style={{ textAlign: 'center', padding: 'clamp(32px,6vw,64px) 24px clamp(16px,3vw,32px)' }}>
+        <h1 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: 'clamp(28px,5vw,44px)', color: '#F5F0E8' }}>
+          Hola, {firstName}.
+        </h1>
+        <div style={{ width: '60px', height: '0.5px', background: 'rgba(201,168,76,0.5)', margin: '14px auto 0' }} />
+      </div>
+
+      {/* Tab selector */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', padding: '0 24px 32px' }}>
+        {(['invitations', 'profile'] as const).map((t) => {
+          const active = tab === t
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                padding: '9px 20px', borderRadius: '20px', cursor: 'pointer',
+                background: active ? 'rgba(201,168,76,0.12)' : 'transparent',
+                border: `0.5px solid ${active ? 'rgba(201,168,76,0.4)' : 'rgba(245,240,232,0.15)'}`,
+                color: active ? GOLD : 'rgba(245,240,232,0.4)',
+                ...S, fontSize: '10px', letterSpacing: '0.14em', textTransform: 'uppercase',
+                transition: 'all 150ms ease',
+              }}
+            >
+              {t === 'invitations' ? 'MIS INVITACIONES' : 'MI PERFIL'}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Tab content */}
+      {tab === 'invitations' ? (
+        dataLoading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+            <div style={{ width: '28px', height: '28px', border: '0.5px solid rgba(201,168,76,0.2)', borderTop: `0.5px solid ${GOLD}`, borderRadius: '50%', animation: 'cuentaSpin 1s linear infinite' }} />
+          </div>
+        ) : data ? (
+          <InvitationsTab registrations={data.registrations} payments={data.payments} />
+        ) : (
+          <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.4)', textAlign: 'center', padding: '40px' }}>Error cargando datos.</p>
+        )
+      ) : (
+        <ProfileTab
+          session={session}
+          registration={data?.registrations?.[0] ?? null}
+        />
+      )}
+      <style>{`@keyframes cuentaSpin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
+export default function CuentaPage() {
+  const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(true)
+  const supabaseRef = useRef(createClient())
+
+  useEffect(() => {
+    const supabase = supabaseRef.current
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s)
+      setLoading(false)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s)
+      setLoading(false)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (loading) return <Spinner />
+  if (!session) return <AuthPanel />
+  return <AccountDashboard session={session} />
 }

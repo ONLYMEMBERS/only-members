@@ -20,7 +20,9 @@
       "Bash(grep -v \"^--$\")",
       "Bash(npx next *)",
       "Bash(git pull *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(node -e \"const pkg = require\\('./node_modules/@supabase/supabase-js/package.json'\\); console.log\\(pkg.version\\)\")"
     ]
   }
 }

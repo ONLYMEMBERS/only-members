@@ -10,13 +10,25 @@ type ScanResult =
   | { ok: true; attendee: Attendee; alreadyIn: boolean }
   | { ok: false; reason: 'expired' | 'wrong_event' | 'invalid' | 'not_confirmed' }
 
-function parseQrToken(text: string): { registration_id: string; expires?: number } | { rsvp_token: string } | null {
+type QrParsed =
+  | { regId: string; expires?: number }
+  | { rsvpToken: string }
+
+function parseQrToken(text: string): QrParsed | null {
+  // Try unicode-safe base64 (new format)
   try {
-    const decoded = JSON.parse(atob(text))
-    if (decoded.registration_id) return decoded
+    const d = JSON.parse(decodeURIComponent(escape(atob(text))))
+    if (d.id) return { regId: d.id }
+    if (d.registration_id) return { regId: d.registration_id, expires: d.expires }
   } catch {}
-  // Legacy: raw rsvp_token
-  if (text.length > 10) return { rsvp_token: text }
+  // Try plain base64 (legacy format)
+  try {
+    const d = JSON.parse(atob(text))
+    if (d.id) return { regId: d.id }
+    if (d.registration_id) return { regId: d.registration_id, expires: d.expires }
+  } catch {}
+  // Raw rsvp_token fallback
+  if (text.length > 10) return { rsvpToken: text }
   return null
 }
 
@@ -99,20 +111,18 @@ export default function DoorPage() {
 
     let found: Attendee | undefined
 
-    if ('registration_id' in parsed) {
-      // New token format
+    if ('regId' in parsed) {
       if (parsed.expires && Date.now() > parsed.expires) {
         setScanResult({ ok: false, reason: 'expired' })
         setTimeout(() => setScanResult(null), 5000)
         return
       }
-      found = attendees.find((a) => a.id === parsed.registration_id)
+      found = attendees.find((a) => a.id === parsed.regId)
       if (!found) {
-        // Check if registration exists but belongs to different event
         const { data } = await supabase
           .from('registrations')
           .select('id, event_id, status')
-          .eq('id', parsed.registration_id)
+          .eq('id', parsed.regId)
           .single()
         if (data && data.event_id !== eventId) {
           setScanResult({ ok: false, reason: 'wrong_event' })
@@ -125,8 +135,7 @@ export default function DoorPage() {
         return
       }
     } else {
-      // Legacy rsvp_token format
-      found = attendees.find((a) => a.rsvp_token === parsed.rsvp_token)
+      found = attendees.find((a) => a.rsvp_token === parsed.rsvpToken)
     }
 
     if (!found) {
