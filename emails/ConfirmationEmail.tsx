@@ -10,7 +10,7 @@ interface Props {
   country: string
   dateStart: string | null
   language?: string
-  magicLink?: string
+  inviteLink?: string
 }
 
 function formatDate(d: string | null) {
@@ -20,7 +20,7 @@ function formatDate(d: string | null) {
   })
 }
 
-export function ConfirmationEmail({ firstName, eventName, city, country, dateStart, language = 'es', magicLink }: Props) {
+export function ConfirmationEmail({ firstName, eventName, city, country, dateStart, language = 'es', inviteLink }: Props) {
   const es = language !== 'en'
 
   return (
@@ -65,23 +65,29 @@ export function ConfirmationEmail({ firstName, eventName, city, country, dateSta
             </Text>
           </Section>
 
-          {/* Magic link CTA */}
-          {magicLink && (
+          {/* Invite link CTA */}
+          {inviteLink && (
             <Section style={{ marginBottom: '32px' }}>
+              <Text style={{ fontFamily: 'Arial, sans-serif', fontWeight: 300, fontSize: '10px', letterSpacing: '0.15em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase', margin: '0 0 12px 0' }}>
+                {es ? 'TU CUENTA' : 'YOUR ACCOUNT'}
+              </Text>
               <Text style={{ fontFamily: 'Arial, sans-serif', fontWeight: 300, fontSize: '13px', color: 'rgba(245,240,232,0.6)', lineHeight: 1.7, marginBottom: '16px' }}>
                 {es
-                  ? 'Accedé a tu cuenta para ver el estado de tu solicitud.'
-                  : 'Access your account to track your request status.'}
+                  ? 'Creá tu contraseña para acceder a tu cuenta y hacer seguimiento de tu solicitud.'
+                  : 'Create your password to access your account and track your request.'}
               </Text>
-              <Button href={magicLink} style={{
+              <Button href={inviteLink} style={{
                 display: 'inline-block', padding: '14px 28px',
                 background: 'rgba(201,168,76,0.12)', border: '0.5px solid rgba(201,168,76,0.5)',
                 borderRadius: '3px', color: '#C9A84C',
                 fontFamily: 'Arial, sans-serif', fontSize: '11px', letterSpacing: '0.12em',
                 textDecoration: 'none',
               }}>
-                {es ? 'VER MI CUENTA' : 'MY ACCOUNT'}
+                {es ? 'CREAR MI CONTRASEÑA' : 'CREATE MY PASSWORD'}
               </Button>
+              <Text style={{ fontFamily: 'Arial, sans-serif', fontWeight: 300, fontSize: '11px', color: 'rgba(245,240,232,0.3)', marginTop: '12px' }}>
+                {es ? 'Este link es válido por 24 horas.' : 'This link is valid for 24 hours.'}
+              </Text>
             </Section>
           )}
 

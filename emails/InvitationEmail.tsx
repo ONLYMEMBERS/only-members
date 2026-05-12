@@ -11,14 +11,12 @@ interface Props {
   rsvpToken: string
   language?: string
   customBody?: string
-  confirmUrl?: string
 }
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://onlymembers.life'
 
-export function InvitationEmail({ firstName, eventName, city, dateStart, rsvpToken, language = 'es', customBody, confirmUrl }: Props) {
+export function InvitationEmail({ firstName, eventName, city, dateStart, rsvpToken, language = 'es', customBody }: Props) {
   const es = language !== 'en'
-  const confirmedUrl = confirmUrl ?? `${siteUrl}/api/rsvp?token=${rsvpToken}&response=confirmed`
   const declinedUrl = `${siteUrl}/api/rsvp?token=${rsvpToken}&response=declined`
 
   const dateStr = dateStart
@@ -64,14 +62,14 @@ export function InvitationEmail({ firstName, eventName, city, dateStart, rsvpTok
 
           {/* CTA buttons */}
           <Section style={{ marginBottom: '32px' }}>
-            <Button href={confirmedUrl} style={{
+            <Button href={`${siteUrl}/cuenta`} style={{
               display: 'inline-block', padding: '14px 28px', marginRight: '12px',
               background: 'rgba(201,168,76,0.12)', border: '0.5px solid rgba(201,168,76,0.5)',
               borderRadius: '3px', color: '#C9A84C',
               fontFamily: 'Arial, sans-serif', fontSize: '11px', letterSpacing: '0.12em',
               textDecoration: 'none',
             }}>
-              {es ? 'CONFIRMO ASISTENCIA' : 'CONFIRM ATTENDANCE'}
+              {es ? 'VER MI INVITACIÓN' : 'VIEW MY INVITATION'}
             </Button>
             <Button href={declinedUrl} style={{
               display: 'inline-block', padding: '14px 28px',

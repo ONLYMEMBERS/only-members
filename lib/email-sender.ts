@@ -9,7 +9,7 @@ export async function sendConfirmationEmail(
     first_name: string
     email: string
     language?: string | null
-    magicLink?: string
+    inviteLink?: string
   },
   event: {
     name: string
@@ -34,7 +34,7 @@ export async function sendConfirmationEmail(
       country: countryName,
       dateStart: event.date_start,
       language: lang,
-      magicLink: registration.magicLink,
+      inviteLink: registration.inviteLink,
     }),
   })
 

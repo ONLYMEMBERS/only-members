@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = createAdminClient()
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://onlymembers.life'
 
     const { data: regs, error } = await admin
       .from('registrations')
@@ -69,19 +68,6 @@ export async function POST(req: NextRequest) {
           const customBody = rawBody ? replaceVariables(rawBody, vars) : undefined
           const subject = replaceVariables(rawSubject, vars)
 
-          // Generate magic link so "CONFIRMO ASISTENCIA" logs the user in and leads to /cuenta
-          let confirmUrl: string | undefined = undefined
-          try {
-            const { data: linkData } = await admin.auth.admin.generateLink({
-              type: 'magiclink',
-              email: reg.email,
-              options: { redirectTo: `${siteUrl}/auth/callback` },
-            })
-            confirmUrl = (linkData as any)?.properties?.action_link ?? undefined
-          } catch {
-            // fall back to direct RSVP URL defined in email template
-          }
-
           try {
             const { id: resendId } = await sendEmail({
               to: reg.email,
@@ -94,7 +80,6 @@ export async function POST(req: NextRequest) {
                 rsvpToken: reg.rsvp_token,
                 language: lang,
                 customBody: customBody || undefined,
-                confirmUrl,
               }),
             })
 

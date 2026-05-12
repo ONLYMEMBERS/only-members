@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-browser'
 import { Session } from '@supabase/supabase-js'
@@ -20,26 +20,71 @@ function Spinner() {
   )
 }
 
+// ── Password strength bar ─────────────────────────────────────────────────────
+
+function StrengthBar({ password }: { password: string }) {
+  const checks = [
+    password.length >= 8,
+    /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^A-Za-z0-9]/.test(password),
+  ]
+  const strength = checks.filter(Boolean).length
+  const colors = ['', '#ef5350', '#ff9800', '#ffca28', '#66bb6a']
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} style={{ flex: 1, height: '2px', borderRadius: '2px', background: i < strength ? colors[strength] : 'rgba(245,240,232,0.1)', transition: 'background 200ms' }} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        {[
+          { label: 'Al menos 8 caracteres', ok: checks[0] },
+          { label: 'Una mayúscula', ok: checks[1] },
+          { label: 'Un número', ok: checks[2] },
+          { label: 'Un carácter especial', ok: checks[3] },
+        ].map(({ label, ok }) => (
+          <p key={label} style={{ ...S, fontSize: '11px', color: ok ? 'rgba(102,187,106,0.8)' : 'rgba(245,240,232,0.35)', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '10px', textAlign: 'center' }}>{ok ? '✓' : '·'}</span>{label}
+          </p>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Eye toggle SVG ────────────────────────────────────────────────────────────
+
+function EyeIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      {open
+        ? <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></>
+        : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>
+      }
+    </svg>
+  )
+}
+
 // ── Auth Panel — no session ───────────────────────────────────────────────────
 
-function LoginSection({ onSuccess }: { onSuccess: () => void }) {
+function LoginSection({ onSuccess, emailPrefill }: { onSuccess: () => void; emailPrefill?: string }) {
   const [view, setView] = useState<'normal' | 'reset'>('normal')
-  // Password login
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(emailPrefill ?? '')
   const [password, setPassword] = useState('')
   const [showPwd, setShowPwd] = useState(false)
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState('')
-  // Reset
   const [resetEmail, setResetEmail] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetError, setResetError] = useState('')
-  // Magic link
-  const [magicEmail, setMagicEmail] = useState('')
-  const [magicLoading, setMagicLoading] = useState(false)
-  const [magicSent, setMagicSent] = useState(false)
-  const [magicError, setMagicError] = useState('')
+
+  useEffect(() => {
+    if (emailPrefill) setEmail(emailPrefill)
+  }, [emailPrefill])
 
   async function handleLogin() {
     if (!email || !password) { setLoginError('Completá email y contraseña'); return }
@@ -49,7 +94,7 @@ function LoginSection({ onSuccess }: { onSuccess: () => void }) {
       const supabase = createClient()
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
       if (error) {
-        setLoginError('Email o contraseña incorrectos. Si nunca creaste contraseña, usá el link de acceso.')
+        setLoginError('Email o contraseña incorrectos.')
       } else {
         onSuccess()
       }
@@ -70,26 +115,8 @@ function LoginSection({ onSuccess }: { onSuccess: () => void }) {
     }
   }
 
-  async function handleMagicLink() {
-    if (!magicEmail || !magicEmail.includes('@')) { setMagicError('Ingresá un email válido'); return }
-    setMagicLoading(true)
-    setMagicError('')
-    try {
-      const res = await fetch('/api/auth/magic-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: magicEmail }) })
-      const data = await res.json()
-      if (res.ok && data.success) {
-        setMagicSent(true)
-      } else if (res.status === 404) {
-        setMagicError('No encontramos este email. ¿Querés registrarte a un evento?')
-      } else {
-        setMagicError(data.error || 'No pudimos enviar el link.')
-      }
-    } finally {
-      setMagicLoading(false)
-    }
-  }
-
   const inputStyle: React.CSSProperties = { width: '100%', padding: '12px 16px', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.25)', borderRadius: '8px', color: '#F5F0E8', caretColor: GOLD, ...S, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
+  const labelStyle: React.CSSProperties = { ...S, fontSize: '10px', letterSpacing: '0.1em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase' as const, display: 'block', marginBottom: '4px' }
 
   if (view === 'reset') {
     return (
@@ -97,20 +124,21 @@ function LoginSection({ onSuccess }: { onSuccess: () => void }) {
         <button onClick={() => setView('normal')} style={{ ...S, fontSize: '12px', color: 'rgba(201,168,76,0.6)', background: 'transparent', border: 'none', cursor: 'pointer', marginBottom: '20px', padding: 0 }}>
           ← Volver al login
         </button>
-        <h3 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color: '#F5F0E8', marginBottom: '8px' }}>Restablecer contraseña</h3>
+        <h3 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color: '#F5F0E8', marginBottom: '8px' }}>RECUPERAR CONTRASEÑA</h3>
         <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.5)', lineHeight: 1.5, marginBottom: '20px' }}>
           Ingresá tu email y te enviamos un link para crear una nueva contraseña.
         </p>
         {resetSent ? (
           <p style={{ ...S, fontSize: '13px', color: 'rgba(72,187,120,0.9)', lineHeight: 1.5 }}>
-            Revisá tu email para restablecer tu contraseña.
+            Revisá tu email. Te enviamos un link de recuperación.
           </p>
         ) : (
           <>
+            <label style={labelStyle}>EMAIL</label>
             <input type="email" placeholder="tu@email.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleReset()} style={{ ...inputStyle, marginBottom: '12px' }} />
             {resetError && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)', marginBottom: '10px' }}>{resetError}</p>}
             <button onClick={handleReset} disabled={resetLoading} style={{ width: '100%', padding: '13px', background: 'rgba(201,168,76,0.08)', border: `0.5px solid rgba(201,168,76,0.35)`, borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.14em', cursor: resetLoading ? 'wait' : 'pointer', opacity: resetLoading ? 0.6 : 1 }}>
-              {resetLoading ? 'ENVIANDO...' : 'ENVIAR LINK DE RESET'}
+              {resetLoading ? 'ENVIANDO...' : 'ENVIAR LINK'}
             </button>
           </>
         )}
@@ -119,58 +147,35 @@ function LoginSection({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <div>
-      {/* Password login */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} autoFocus />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div>
+        <label style={labelStyle}>EMAIL</label>
+        <input type="email" placeholder="tu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} autoFocus={!emailPrefill} />
+      </div>
+      <div>
+        <label style={labelStyle}>CONTRASEÑA</label>
         <div style={{ position: 'relative' }}>
-          <input type={showPwd ? 'text' : 'password'} placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} style={{ ...inputStyle, paddingRight: '44px' }} />
+          <input type={showPwd ? 'text' : 'password'} placeholder="Tu contraseña" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleLogin()} style={{ ...inputStyle, paddingRight: '44px' }} autoFocus={!!emailPrefill} />
           <button type="button" onClick={() => setShowPwd(!showPwd)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(245,240,232,0.4)', display: 'flex', padding: '4px' }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              {showPwd ? <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></> : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}
-            </svg>
+            <EyeIcon open={showPwd} />
           </button>
         </div>
-        {loginError && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{loginError}</p>}
-        <button onClick={handleLogin} disabled={loginLoading} style={{ width: '100%', padding: '13px', background: 'rgba(201,168,76,0.1)', border: `0.5px solid rgba(201,168,76,0.4)`, borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.14em', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading ? 0.6 : 1 }}>
-          {loginLoading ? 'INGRESANDO...' : 'INGRESAR'}
-        </button>
-        <button onClick={() => setView('reset')} style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'right', padding: 0 }}>
-          ¿Olvidaste tu contraseña?
-        </button>
       </div>
-
-      {/* Separator */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '20px 0' }}>
-        <div style={{ flex: 1, height: '0.5px', background: 'rgba(201,168,76,0.15)' }} />
-        <span style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.3)' }}>o</span>
-        <div style={{ flex: 1, height: '0.5px', background: 'rgba(201,168,76,0.15)' }} />
-      </div>
-
-      {/* Magic link */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {magicSent ? (
-          <p style={{ ...S, fontSize: '13px', color: 'rgba(72,187,120,0.9)', lineHeight: 1.5, textAlign: 'center' }}>
-            Revisá tu email. El link llega en segundos.
-          </p>
-        ) : (
-          <>
-            <input type="email" placeholder="Email para link de acceso" value={magicEmail} onChange={(e) => setMagicEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleMagicLink()} style={inputStyle} />
-            {magicError && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{magicError}</p>}
-            <button onClick={handleMagicLink} disabled={magicLoading} style={{ width: '100%', padding: '13px', background: 'transparent', border: `0.5px solid rgba(245,240,232,0.15)`, borderRadius: '8px', color: 'rgba(245,240,232,0.6)', ...S, fontSize: '11px', letterSpacing: '0.12em', cursor: magicLoading ? 'wait' : 'pointer', opacity: magicLoading ? 0.6 : 1 }}>
-              {magicLoading ? 'ENVIANDO...' : 'ENVIAR LINK DE ACCESO INSTANTÁNEO'}
-            </button>
-          </>
-        )}
-      </div>
+      {loginError && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{loginError}</p>}
+      <button onClick={handleLogin} disabled={loginLoading} style={{ width: '100%', padding: '13px', background: 'rgba(201,168,76,0.1)', border: `0.5px solid rgba(201,168,76,0.4)`, borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.14em', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading ? 0.6 : 1 }}>
+        {loginLoading ? 'INGRESANDO...' : 'INGRESAR'}
+      </button>
+      <button onClick={() => setView('reset')} style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'right', padding: 0 }}>
+        ¿Olvidaste tu contraseña?
+      </button>
     </div>
   )
 }
 
-function SignupSection({ onSuccess }: { onSuccess: () => void }) {
+function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; onSwitchToLogin: (email: string) => void }) {
+  const [step, setStep] = useState<'email' | 'found' | 'notfound'>('email')
   const [emailInput, setEmailInput] = useState('')
   const [checking, setChecking] = useState(false)
-  const [emailStatus, setEmailStatus] = useState<'idle' | 'found' | 'notfound'>('idle')
   const [firstName, setFirstName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -178,26 +183,27 @@ function SignupSection({ onSuccess }: { onSuccess: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const checkEmail = useCallback(async () => {
-    if (!emailInput.includes('@')) return
+  async function checkEmail() {
+    if (!emailInput.trim().includes('@')) { setError('Ingresá un email válido'); return }
     setChecking(true)
+    setError('')
     try {
       const res = await fetch(`/api/auth/check-email?email=${encodeURIComponent(emailInput.trim())}`)
       const data = await res.json()
       if (data.exists) {
-        setEmailStatus('found')
+        setStep('found')
         setFirstName(data.firstName ?? '')
       } else {
-        setEmailStatus('notfound')
+        setStep('notfound')
       }
     } finally {
       setChecking(false)
     }
-  }, [emailInput])
+  }
 
   async function handleSignup() {
     if (!password) { setError('Ingresá una contraseña'); return }
-    if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return }
+    if (password.length < 8) { setError('La contraseña debe tener al menos 8 caracteres'); return }
     if (password !== confirmPassword) { setError('Las contraseñas no coinciden'); return }
     setLoading(true)
     setError('')
@@ -205,7 +211,6 @@ function SignupSection({ onSuccess }: { onSuccess: () => void }) {
       const res = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: emailInput.trim(), password }) })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Error al crear la cuenta'); return }
-      // Auto sign in
       const supabase = createClient()
       const { error: signInError } = await supabase.auth.signInWithPassword({ email: emailInput.trim(), password })
       if (signInError) { setError(signInError.message); return }
@@ -216,15 +221,34 @@ function SignupSection({ onSuccess }: { onSuccess: () => void }) {
   }
 
   const inputStyle: React.CSSProperties = { width: '100%', padding: '12px 16px', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.25)', borderRadius: '8px', color: '#F5F0E8', caretColor: GOLD, ...S, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
+  const labelStyle: React.CSSProperties = { ...S, fontSize: '10px', letterSpacing: '0.1em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase' as const, display: 'block', marginBottom: '4px' }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div>
-        <input type="email" placeholder="Tu email" value={emailInput} onChange={(e) => { setEmailInput(e.target.value); setEmailStatus('idle') }} onBlur={checkEmail} style={inputStyle} />
-        {checking && <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.4)', marginTop: '6px' }}>Verificando...</p>}
+        <label style={labelStyle}>EMAIL</label>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <input
+            type="email"
+            placeholder="tu@email.com"
+            value={emailInput}
+            onChange={(e) => { setEmailInput(e.target.value); setStep('email'); setError('') }}
+            onKeyDown={(e) => e.key === 'Enter' && checkEmail()}
+            style={{ ...inputStyle, flex: 1 }}
+            autoFocus
+          />
+          <button
+            onClick={checkEmail}
+            disabled={checking}
+            style={{ padding: '12px 16px', background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.35)', borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.1em', cursor: checking ? 'wait' : 'pointer', opacity: checking ? 0.6 : 1, whiteSpace: 'nowrap' as const }}
+          >
+            {checking ? '...' : 'CONTINUAR'}
+          </button>
+        </div>
+        {error && step === 'email' && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)', marginTop: '6px' }}>{error}</p>}
       </div>
 
-      {emailStatus === 'notfound' && (
+      {step === 'notfound' && (
         <div style={{ padding: '14px 16px', background: 'rgba(245,240,232,0.04)', border: '0.5px solid rgba(245,240,232,0.1)', borderRadius: '8px' }}>
           <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.6)', lineHeight: 1.5, marginBottom: '12px' }}>
             Para crear una cuenta primero registrate a un evento.
@@ -235,23 +259,31 @@ function SignupSection({ onSuccess }: { onSuccess: () => void }) {
         </div>
       )}
 
-      {emailStatus === 'found' && (
+      {step === 'found' && (
         <>
           <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.7)', lineHeight: 1.5 }}>
-            {firstName ? `Hola, ${firstName}. ` : ''}Encontramos tu solicitud. Solo necesitamos tu contraseña.
+            {firstName ? `Hola, ${firstName}. ` : ''}Encontramos tu solicitud. Elegí tu contraseña.
           </p>
-          <div style={{ position: 'relative' }}>
-            <input type={showPwd ? 'text' : 'password'} placeholder="Contraseña (mín. 6 caracteres)" value={password} onChange={(e) => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: '44px' }} />
-            <button type="button" onClick={() => setShowPwd(!showPwd)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(245,240,232,0.4)', display: 'flex', padding: '4px' }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                {showPwd ? <><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></> : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}
-              </svg>
-            </button>
+          <div>
+            <label style={labelStyle}>CONTRASEÑA</label>
+            <div style={{ position: 'relative' }}>
+              <input type={showPwd ? 'text' : 'password'} placeholder="Mín. 8 caracteres" value={password} onChange={(e) => setPassword(e.target.value)} style={{ ...inputStyle, paddingRight: '44px' }} autoFocus />
+              <button type="button" onClick={() => setShowPwd(!showPwd)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'rgba(245,240,232,0.4)', display: 'flex', padding: '4px' }}>
+                <EyeIcon open={showPwd} />
+              </button>
+            </div>
           </div>
-          <input type={showPwd ? 'text' : 'password'} placeholder="Confirmar contraseña" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSignup()} style={inputStyle} />
+          {password && <StrengthBar password={password} />}
+          <div>
+            <label style={labelStyle}>CONFIRMAR CONTRASEÑA</label>
+            <input type={showPwd ? 'text' : 'password'} placeholder="Repetí tu contraseña" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSignup()} style={inputStyle} />
+          </div>
           {error && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{error}</p>}
           <button onClick={handleSignup} disabled={loading} style={{ width: '100%', padding: '13px', background: 'rgba(201,168,76,0.1)', border: `0.5px solid rgba(201,168,76,0.4)`, borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.14em', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1 }}>
             {loading ? 'CREANDO CUENTA...' : 'CREAR CUENTA'}
+          </button>
+          <button onClick={() => onSwitchToLogin(emailInput)} style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'center', padding: 0 }}>
+            ¿Ya tenés cuenta? Ingresá
           </button>
         </>
       )}
@@ -261,8 +293,13 @@ function SignupSection({ onSuccess }: { onSuccess: () => void }) {
 
 function AuthPanel() {
   const [tab, setTab] = useState<'login' | 'signup'>('login')
-  // onSuccess is handled by session subscription in parent
+  const [loginEmailPrefill, setLoginEmailPrefill] = useState('')
   const handleSuccess = () => { /* session subscription fires automatically */ }
+
+  function handleSwitchToLogin(email: string) {
+    setLoginEmailPrefill(email)
+    setTab('login')
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#0A0A0F', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
@@ -300,8 +337,8 @@ function AuthPanel() {
         </div>
 
         {tab === 'login'
-          ? <LoginSection onSuccess={handleSuccess} />
-          : <SignupSection onSuccess={handleSuccess} />
+          ? <LoginSection onSuccess={handleSuccess} emailPrefill={loginEmailPrefill} />
+          : <SignupSection onSuccess={handleSuccess} onSwitchToLogin={handleSwitchToLogin} />
         }
       </div>
     </div>
@@ -356,7 +393,7 @@ function ProfileTab({ session, registration }: { session: Session; registration:
   }
 
   const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '6px', color: '#F5F0E8', caretColor: GOLD, ...S, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
-  const labelStyle: React.CSSProperties = { ...S, fontSize: '10px', letterSpacing: '0.1em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }
+  const labelStyle: React.CSSProperties = { ...S, fontSize: '10px', letterSpacing: '0.1em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase' as const, display: 'block', marginBottom: '4px' }
   const valueStyle: React.CSSProperties = { ...S, fontSize: '14px', color: '#F5F0E8', padding: '10px 0', borderBottom: '0.5px solid rgba(201,168,76,0.1)' }
 
   return (
@@ -374,13 +411,10 @@ function ProfileTab({ session, registration }: { session: Session; registration:
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Name (read-only) */}
           <div>
             <span style={labelStyle}>NOMBRE</span>
             <p style={valueStyle}>{registration?.first_name ?? ''} {registration?.last_name ?? ''}</p>
           </div>
-
-          {/* Email (read-only) */}
           <div>
             <span style={labelStyle}>EMAIL</span>
             <p style={valueStyle}>{session.user.email}</p>
@@ -453,7 +487,7 @@ function ProfileTab({ session, registration }: { session: Session; registration:
         {pwdStep === 'confirm' && (
           <div style={{ padding: '16px', background: 'rgba(201,168,76,0.04)', border: '0.5px solid rgba(201,168,76,0.15)', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.7)', lineHeight: 1.6, margin: 0 }}>
-              Para cambiar tu contraseña, primero confirmaremos tu identidad enviando un link a:
+              Para cambiar tu contraseña, confirmaremos tu identidad enviando un link a:
             </p>
             <p style={{ ...S, fontSize: '13px', color: '#F5F0E8', margin: 0 }}>{session.user.email}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
