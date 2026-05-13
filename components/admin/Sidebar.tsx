@@ -11,6 +11,7 @@ const NAV = [
   { href: '/admin/registrations', label: 'Registros',      icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75' },
   { href: '/admin/invitations',   label: 'Invitaciones',   icon: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6' },
   { href: '/admin/confirmed',     label: 'Confirmados',    icon: 'M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3' },
+  { href: '/admin/members',       label: 'Members',        icon: 'M12 2l2.09 6.26H21l-5.47 3.97 2.09 6.26L12 14.51l-5.62 3.98 2.09-6.26L3 8.26h6.91z' },
   { href: '/admin/sales',         label: 'Ventas',         icon: 'M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6' },
   { href: '/admin/referrals',     label: 'Referidos',      icon: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71' },
   { href: '/admin/csv',           label: 'Upload CSV',     icon: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12' },

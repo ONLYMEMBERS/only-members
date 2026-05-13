@@ -12,10 +12,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
+
+    // Honeypot — bots fill this field, humans never see it
+    const { website, ...formData } = body
+    if (website && website.length > 0) {
+      return NextResponse.json({ success: true })
+    }
+
     const {
       event_id, first_name, last_name, email, phone, country,
       city, dni, gender, instagram, language = 'es', ref_code,
-    } = body
+    } = formData
 
     if (!first_name || !last_name || !email || !country || !dni || !gender) {
       return NextResponse.json({ error: 'Campos requeridos faltantes.' }, { status: 400 })
@@ -28,6 +35,27 @@ export async function POST(req: NextRequest) {
     }
 
     const admin = createAdminClient()
+
+    // Rate limiting by IP — max 3 registrations per hour per IP
+    const clientIP = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || req.headers.get('x-real-ip')
+      || 'unknown'
+
+    if (clientIP !== 'unknown') {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+      const { count } = await admin
+        .from('registrations')
+        .select('*', { count: 'exact', head: true })
+        .eq('ip_address', clientIP)
+        .gte('created_at', oneHourAgo)
+
+      if (count && count >= 3) {
+        return NextResponse.json(
+          { error: 'Demasiados intentos. Esperá una hora.' },
+          { status: 429 }
+        )
+      }
+    }
 
     // Internal blacklist check
     const { data: blacklisted } = await admin
@@ -84,6 +112,7 @@ export async function POST(req: NextRequest) {
         language,
         ref_code: ref_code || null,
         status: 'pending',
+        ip_address: clientIP,
       })
       .select('id, rsvp_token')
       .single()
@@ -100,7 +129,7 @@ export async function POST(req: NextRequest) {
       try { await admin.rpc('increment_referral', { code: ref_code }) } catch {}
     }
 
-    // Generate invite link — creates auth user (if new) and invite token in one call
+    // Generate invite link
     let inviteLink: string | undefined
     try {
       const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://onlymembers.life'
@@ -115,7 +144,7 @@ export async function POST(req: NextRequest) {
       inviteLink = (linkData as any)?.properties?.action_link ?? undefined
     } catch {}
 
-    // Send confirmation email — non-blocking, never breaks the registration
+    // Send confirmation email — non-blocking
     try {
       await sendConfirmationEmail(
         { id: registration.id, first_name, email, language, inviteLink },

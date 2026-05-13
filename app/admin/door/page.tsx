@@ -2,342 +2,494 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase-browser'
-import { Registration } from '@/lib/admin-types'
 
-type Attendee = Pick<Registration, 'id' | 'first_name' | 'last_name' | 'email' | 'country' | 'instagram' | 'dni' | 'status' | 'checkin_at' | 'rsvp_token'>
+const GOLD = '#C9A84C'
+const S = { fontFamily: 'var(--font-inter)', fontWeight: 300 } as const
 
-type ScanResult =
-  | { ok: true; attendee: Attendee; alreadyIn: boolean }
-  | { ok: false; reason: 'expired' | 'wrong_event' | 'invalid' | 'not_confirmed' }
-
-type QrParsed =
-  | { regId: string; expires?: number }
-  | { rsvpToken: string }
-
-function parseQrToken(text: string): QrParsed | null {
-  // Try unicode-safe base64 (new format)
-  try {
-    const d = JSON.parse(decodeURIComponent(escape(atob(text))))
-    if (d.id) return { regId: d.id }
-    if (d.registration_id) return { regId: d.registration_id, expires: d.expires }
-  } catch {}
-  // Try plain base64 (legacy format)
-  try {
-    const d = JSON.parse(atob(text))
-    if (d.id) return { regId: d.id }
-    if (d.registration_id) return { regId: d.registration_id, expires: d.expires }
-  } catch {}
-  // Raw rsvp_token fallback
-  if (text.length > 10) return { rsvpToken: text }
-  return null
+type CheckinFeed = {
+  id: string
+  scanned_at: string
+  attendee_name: string
+  attendee_email: string
+  attendee_dni: string | null
+  scanner_name: string | null
+  scanner_email: string | null
+  is_member: boolean
+  result: string
 }
 
-export default function DoorPage() {
-  const [events, setEvents] = useState<any[]>([])
-  const [eventId, setEventId] = useState('')
-  const [attendees, setAttendees] = useState<Attendee[]>([])
-  const [query, setQuery] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [scanning, setScanning] = useState(false)
-  const [scanResult, setScanResult] = useState<ScanResult | null>(null)
-  const [checkinLoading, setCheckinLoading] = useState<string | null>(null)
-  const scannerRef = useRef<any>(null)
-  const scannerDivRef = useRef<HTMLDivElement>(null)
-  const supabase = createClient()
+type ScannerRow = {
+  id: string
+  name: string
+  email: string
+  event_id: string | null
+  active: boolean
+  last_scan_at: string | null
+  scans_count: number
+  events?: { name: string }
+}
 
-  const currentEvent = events.find((e) => e.id === eventId)
+type Metrics = { total: number; ingresaron: number; members: number }
 
-  useEffect(() => {
-    supabase.from('events').select('id, name, date_start').in('status', ['active', 'soon', 'closed']).order('date_start', { ascending: false }).then(({ data }) => setEvents(data ?? []))
-  }, [])
+function isActive(lastScan: string | null): boolean {
+  if (!lastScan) return false
+  return Date.now() - new Date(lastScan).getTime() < 5 * 60 * 1000
+}
 
-  useEffect(() => {
-    if (!eventId) return
-    setLoading(true)
-    supabase
-      .from('registrations')
-      .select('id, first_name, last_name, email, country, instagram, dni, status, checkin_at, rsvp_token')
-      .eq('event_id', eventId)
-      .in('status', ['confirmed', 'vip', 'purchased'])
-      .order('first_name')
-      .then(({ data }) => {
-        setAttendees((data ?? []) as Attendee[])
-        setLoading(false)
-      })
-  }, [eventId])
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
 
-  const filtered = attendees.filter((a) => {
-    if (!query) return true
-    const q = query.toLowerCase()
+function CheckinCard({ item, collapsed }: { item: CheckinFeed; collapsed: boolean }) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => { setTimeout(() => setVisible(true), 10) }, [])
+
+  if (collapsed) return null
+
+  const isOk = item.result === 'valid'
+  const isMember = item.is_member && isOk
+
+  if (isMember) {
     return (
-      a.first_name.toLowerCase().includes(q) ||
-      a.last_name.toLowerCase().includes(q) ||
-      a.email.toLowerCase().includes(q)
+      <div style={{
+        transform: visible ? 'translateY(0)' : 'translateY(-20px)',
+        opacity: visible ? 1 : 0,
+        transition: 'all 300ms ease',
+        background: 'linear-gradient(135deg, rgba(201,168,76,0.12), rgba(201,168,76,0.04))',
+        borderLeft: `2px solid ${GOLD}`,
+        borderRadius: '6px', padding: '14px 16px',
+        marginBottom: '8px', position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+          <span style={{ fontSize: '22px', lineHeight: 1 }}>♛</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span style={{
+                ...S, fontSize: '9px', letterSpacing: '0.15em',
+                color: GOLD, fontWeight: 500,
+              }}>MEMBER</span>
+            </div>
+            <p style={{
+              fontFamily: 'var(--font-cormorant)', fontWeight: 300,
+              fontSize: '18px', color: '#F5F0E8', margin: '0 0 4px',
+            }}>
+              {item.attendee_name}
+            </p>
+            {item.attendee_dni && (
+              <p style={{ ...S, fontSize: '11px', color: `rgba(201,168,76,0.7)`, margin: 0 }}>
+                {item.attendee_dni} · {formatTime(item.scanned_at)}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
     )
-  })
-
-  async function markEntry(id: string) {
-    setCheckinLoading(id)
-    const now = new Date().toISOString()
-    await supabase.from('registrations').update({ checkin_at: now }).eq('id', id)
-    setAttendees((prev) => prev.map((a) => a.id === id ? { ...a, checkin_at: now } : a))
-    setCheckinLoading(null)
   }
 
-  async function undoEntry(id: string) {
-    setCheckinLoading(id)
-    await supabase.from('registrations').update({ checkin_at: null }).eq('id', id)
-    setAttendees((prev) => prev.map((a) => a.id === id ? { ...a, checkin_at: null } : a))
-    setCheckinLoading(null)
-  }
-
-  const stopScanner = useCallback(async () => {
-    if (scannerRef.current) {
-      try { await scannerRef.current.stop() } catch {}
-      scannerRef.current = null
-    }
-    setScanning(false)
-  }, [])
-
-  async function handleQrDecode(text: string) {
-    await stopScanner()
-    const parsed = parseQrToken(text)
-
-    if (!parsed) {
-      setScanResult({ ok: false, reason: 'invalid' })
-      setTimeout(() => setScanResult(null), 5000)
-      return
-    }
-
-    let found: Attendee | undefined
-
-    if ('regId' in parsed) {
-      if (parsed.expires && Date.now() > parsed.expires) {
-        setScanResult({ ok: false, reason: 'expired' })
-        setTimeout(() => setScanResult(null), 5000)
-        return
-      }
-      found = attendees.find((a) => a.id === parsed.regId)
-      if (!found) {
-        const { data } = await supabase
-          .from('registrations')
-          .select('id, event_id, status')
-          .eq('id', parsed.regId)
-          .single()
-        if (data && data.event_id !== eventId) {
-          setScanResult({ ok: false, reason: 'wrong_event' })
-        } else if (data && !['confirmed', 'vip', 'purchased'].includes(data.status)) {
-          setScanResult({ ok: false, reason: 'not_confirmed' })
-        } else {
-          setScanResult({ ok: false, reason: 'invalid' })
-        }
-        setTimeout(() => setScanResult(null), 5000)
-        return
-      }
-    } else {
-      found = attendees.find((a) => a.rsvp_token === parsed.rsvpToken)
-    }
-
-    if (!found) {
-      setScanResult({ ok: false, reason: 'wrong_event' })
-      setTimeout(() => setScanResult(null), 5000)
-      return
-    }
-
-    const alreadyIn = !!found.checkin_at
-    setScanResult({ ok: true, attendee: found, alreadyIn })
-    if (!alreadyIn) markEntry(found.id)
-    setTimeout(() => setScanResult(null), 6000)
-  }
-
-  async function startScanner() {
-    setScanResult(null)
-    setScanning(true)
-
-    const { Html5Qrcode } = await import('html5-qrcode')
-    const scanner = new Html5Qrcode('qr-reader')
-    scannerRef.current = scanner
-
-    await scanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: 250 },
-      handleQrDecode,
-      undefined
-    ).catch(() => { setScanning(false); scannerRef.current = null })
-  }
-
-  useEffect(() => () => { stopScanner() }, [stopScanner])
-
-  const checkedIn = attendees.filter((a) => a.checkin_at).length
-  const S = { fontFamily: 'var(--font-inter)', fontWeight: 300 } as const
-
-  const ERROR_MESSAGES: Record<string, string> = {
-    expired: 'QR expirado — el asistente debe actualizar su código',
-    wrong_event: 'Este QR no corresponde a este evento',
-    invalid: 'QR inválido o dañado',
-    not_confirmed: 'La inscripción no está confirmada',
+  if (isOk) {
+    return (
+      <div style={{
+        transform: visible ? 'translateY(0)' : 'translateY(-20px)',
+        opacity: visible ? 1 : 0,
+        transition: 'all 300ms ease',
+        background: 'rgba(34,197,94,0.06)',
+        borderLeft: '2px solid #22c55e',
+        borderRadius: '6px', padding: '12px 16px', marginBottom: '8px',
+        display: 'flex', gap: '12px', alignItems: 'flex-start',
+      }}>
+        <span style={{ color: '#22c55e', fontSize: '16px', marginTop: '2px' }}>✓</span>
+        <div style={{ flex: 1 }}>
+          <p style={{ ...S, fontSize: '14px', color: '#F5F0E8', margin: '0 0 3px' }}>
+            {item.attendee_name}
+          </p>
+          <p style={{ ...S, fontSize: '11px', color: `rgba(201,168,76,0.6)`, margin: '0 0 2px' }}>
+            {item.attendee_dni ? `${item.attendee_dni} · ` : ''}{formatTime(item.scanned_at)}
+          </p>
+          {item.scanner_email && (
+            <p style={{ ...S, fontSize: '10px', color: 'rgba(245,240,232,0.3)', margin: 0 }}>
+              {item.scanner_email}
+            </p>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0A0F', padding: '0' }}>
-      {/* Header */}
-      <div style={{ background: '#0F0F1A', borderBottom: '0.5px solid rgba(201,168,76,0.12)', padding: '16px 20px', position: 'sticky', top: 0, zIndex: 10 }}>
-        <p style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '20px', color: '#F5F0E8', margin: '0 0 2px 0' }}>
-          {currentEvent?.name ?? 'Vista Puerta'}
+    <div style={{
+      transform: visible ? 'translateY(0)' : 'translateY(-20px)',
+      opacity: visible ? 1 : 0,
+      transition: 'all 300ms ease',
+      background: 'rgba(239,68,68,0.06)',
+      borderLeft: '2px solid #ef4444',
+      borderRadius: '6px', padding: '12px 16px', marginBottom: '8px',
+      display: 'flex', gap: '12px', alignItems: 'flex-start',
+    }}>
+      <span style={{ color: '#ef4444', fontSize: '16px', marginTop: '2px' }}>✗</span>
+      <div>
+        <p style={{ ...S, fontSize: '13px', color: 'rgba(239,68,68,0.8)', margin: '0 0 3px' }}>
+          {item.result === 'duplicate' ? 'Ya ingresó' :
+           item.result === 'wrong_event' ? 'Evento incorrecto' :
+           item.result === 'not_found' ? 'No encontrado' : 'Inválido'}
         </p>
-        {eventId && (
-          <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.35)', margin: 0 }}>
-            {checkedIn} / {attendees.length} ingresaron
-          </p>
-        )}
+        <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.35)', margin: 0 }}>
+          {formatTime(item.scanned_at)}
+          {item.scanner_name ? ` · ${item.scanner_name}` : ''}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export default function DoorPage() {
+  const supabase = createClient()
+  const [events, setEvents] = useState<any[]>([])
+  const [cities, setCities] = useState<any[]>([])
+  const [cityFilter, setCityFilter] = useState('')
+  const [eventId, setEventId] = useState('')
+  const [metrics, setMetrics] = useState<Metrics>({ total: 0, ingresaron: 0, members: 0 })
+  const [activeScanners, setActiveScanners] = useState(0)
+  const [feed, setFeed] = useState<CheckinFeed[]>([])
+  const [scanners, setScanners] = useState<ScannerRow[]>([])
+  const [scannersLoading, setScannersLoading] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [modalForm, setModalForm] = useState({ name: '', email: '', event_id: '' })
+  const [modalSaving, setModalSaving] = useState(false)
+  const [collapsedBefore, setCollapsedBefore] = useState(false)
+  const channelRef = useRef<any>(null)
+
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('events').select('id, name, city_id, cities(id, name, slug)').in('status', ['active', 'soon', 'closed']).order('date_start', { ascending: false }),
+      supabase.from('cities').select('id, name').order('name'),
+    ]).then(([evRes, cityRes]) => {
+      setEvents(evRes.data ?? [])
+      setCities(cityRes.data ?? [])
+    })
+  }, [])
+
+  const loadScanners = useCallback(async () => {
+    setScannersLoading(true)
+    const res = await fetch('/api/admin/scanner-permissions')
+    const { data } = await res.json()
+    setScanners(data ?? [])
+    setScannersLoading(false)
+  }, [])
+
+  useEffect(() => { loadScanners() }, [loadScanners])
+
+  useEffect(() => {
+    if (!eventId) { setFeed([]); setMetrics({ total: 0, ingresaron: 0, members: 0 }); return }
+
+    // Load initial metrics
+    Promise.all([
+      supabase.from('registrations').select('*', { count: 'exact', head: true }).eq('event_id', eventId).in('status', ['confirmed', 'vip', 'member', 'purchased']),
+      supabase.from('door_checkins').select('*', { count: 'exact', head: true }).eq('event_id', eventId).eq('result', 'valid'),
+      supabase.from('door_checkins').select('*', { count: 'exact', head: true }).eq('event_id', eventId).eq('is_member', true).eq('result', 'valid'),
+    ]).then(([total, ingresaron, members]) => {
+      setMetrics({
+        total: total.count ?? 0,
+        ingresaron: ingresaron.count ?? 0,
+        members: members.count ?? 0,
+      })
+    })
+
+    // Load initial feed
+    supabase
+      .from('door_checkins')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('scanned_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => setFeed((data ?? []) as CheckinFeed[]))
+
+    // Set up realtime
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current)
+    }
+
+    const channel = supabase
+      .channel(`door-admin-${eventId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'door_checkins',
+        filter: `event_id=eq.${eventId}`,
+      }, (payload) => {
+        const newCheckin = payload.new as CheckinFeed
+        setFeed((prev) => [newCheckin, ...prev])
+        if (newCheckin.result === 'valid') {
+          setMetrics((prev) => ({
+            ...prev,
+            ingresaron: prev.ingresaron + 1,
+            members: newCheckin.is_member ? prev.members + 1 : prev.members,
+          }))
+        }
+      })
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState()
+        setActiveScanners(Object.keys(state).length)
+      })
+      .subscribe()
+
+    channelRef.current = channel
+
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current)
+    }
+  }, [eventId])
+
+  const filteredEvents = cityFilter
+    ? events.filter((e) => (e.cities as any)?.id === cityFilter)
+    : events
+
+  const recentFeed = feed.filter((f) => f.scanned_at >= twoHoursAgo)
+  const oldFeed = feed.filter((f) => f.scanned_at < twoHoursAgo)
+
+  async function saveScanner() {
+    if (!modalForm.name || !modalForm.email) return
+    setModalSaving(true)
+    await fetch('/api/admin/scanner-permissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(modalForm),
+    })
+    setShowModal(false)
+    setModalForm({ name: '', email: '', event_id: '' })
+    setModalSaving(false)
+    loadScanners()
+  }
+
+  async function toggleScanner(s: ScannerRow) {
+    await fetch('/api/admin/scanner-permissions', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: s.id, active: !s.active }),
+    })
+    setScanners((prev) => prev.map((x) => x.id === s.id ? { ...x, active: !x.active } : x))
+  }
+
+  async function deleteScanner(id: string) {
+    if (!confirm('¿Eliminar scanner?')) return
+    await fetch(`/api/admin/scanner-permissions?id=${id}`, { method: 'DELETE' })
+    setScanners((prev) => prev.filter((x) => x.id !== id))
+  }
+
+  const metricCards = [
+    { label: 'TOTAL INVITADOS', value: metrics.total, color: 'rgba(245,240,232,0.7)' },
+    { label: 'INGRESARON', value: metrics.ingresaron, color: 'rgba(34,197,94,0.8)' },
+    { label: 'MEMBERS', value: metrics.members, color: GOLD },
+    { label: 'SCANNERES ACTIVOS', value: activeScanners, color: 'rgba(168,85,247,0.8)' },
+  ]
+
+  const inputSt: React.CSSProperties = {
+    ...S, fontSize: '13px', padding: '9px 12px',
+    background: '#0A0A0F', border: '0.5px solid rgba(201,168,76,0.2)',
+    borderRadius: '4px', color: '#F5F0E8', outline: 'none', width: '100%', boxSizing: 'border-box',
+  }
+
+  return (
+    <div style={{ padding: 'clamp(20px,4vw,40px)', maxWidth: '1400px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <p style={{ ...S, fontSize: '10px', letterSpacing: '0.2em', color: GOLD, marginBottom: '4px' }}>PUERTA</p>
+          <h1 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '32px', color: '#F5F0E8', margin: 0 }}>
+            Control de Acceso
+          </h1>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <select
+            value={cityFilter}
+            onChange={(e) => setCityFilter(e.target.value)}
+            style={{ ...inputSt, width: 'auto', colorScheme: 'light', backgroundColor: 'transparent', color: '#F5F0E8' }}
+          >
+            <option value="">Todas las ciudades</option>
+            {cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <select
+            value={eventId}
+            onChange={(e) => setEventId(e.target.value)}
+            style={{ ...inputSt, width: 'auto', colorScheme: 'light', backgroundColor: 'transparent', color: '#F5F0E8' }}
+          >
+            <option value="">Seleccionar evento</option>
+            {filteredEvents.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+          {eventId && (
+            <button
+              onClick={() => window.open('/scan', '_blank')}
+              style={{ ...S, fontSize: '10px', letterSpacing: '0.12em', padding: '9px 18px', background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.3)', borderRadius: '4px', color: GOLD, cursor: 'pointer' }}
+            >
+              VISTA SCANNER ↗
+            </button>
+          )}
+        </div>
       </div>
 
-      <div style={{ padding: '16px 20px', maxWidth: '600px', margin: '0 auto' }}>
-        {/* Event selector */}
-        {!eventId && (
-          <div style={{ marginBottom: '20px' }}>
-            <p style={{ ...S, fontSize: '10px', letterSpacing: '0.14em', color: 'rgba(201,168,76,0.6)', textTransform: 'uppercase', marginBottom: '12px' }}>Seleccionar evento</p>
-            {events.map((ev) => (
-              <div key={ev.id} onClick={() => setEventId(ev.id)}
-                style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', padding: '16px 20px', marginBottom: '8px', cursor: 'pointer' }}>
-                <p style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '18px', color: '#F5F0E8', margin: '0 0 4px 0' }}>{ev.name}</p>
-                {ev.date_start && (
-                  <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.4)', margin: 0 }}>
-                    {new Date(ev.date_start).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' })}
-                  </p>
-                )}
-              </div>
-            ))}
+      {/* Metrics */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '28px' }}>
+        {metricCards.map(({ label, value, color }) => (
+          <div key={label} style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', padding: '20px 16px', textAlign: 'center' }}>
+            <p style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '36px', color, margin: '0 0 4px' }}>{value}</p>
+            <p style={{ ...S, fontSize: '9px', letterSpacing: '0.14em', color: 'rgba(245,240,232,0.35)', margin: 0 }}>{label}</p>
           </div>
-        )}
-
-        {eventId && (
-          <>
-            {/* Search + QR button */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-              <input value={query} onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar por nombre o email..." autoFocus
-                style={{ flex: 1, ...S, fontSize: '15px', padding: '12px 16px', background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.2)', borderRadius: '6px', color: '#F5F0E8', outline: 'none' }} />
-              <button onClick={scanning ? stopScanner : startScanner}
-                style={{ ...S, fontSize: '10px', letterSpacing: '0.1em', padding: '12px 16px', background: scanning ? 'rgba(252,129,74,0.1)' : 'rgba(201,168,76,0.08)', border: `0.5px solid rgba(${scanning ? '252,129,74' : '201,168,76'},0.3)`, borderRadius: '6px', color: scanning ? 'rgba(252,129,74,0.9)' : '#C9A84C', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                {scanning ? 'CERRAR' : 'QR'}
-              </button>
-              <button onClick={() => { setEventId(''); setAttendees([]); setQuery('') }}
-                style={{ ...S, fontSize: '10px', padding: '12px 14px', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.1)', borderRadius: '6px', color: 'rgba(245,240,232,0.3)', cursor: 'pointer' }}>
-                ←
-              </button>
-            </div>
-
-            {/* QR Scanner */}
-            {scanning && (
-              <div style={{ marginBottom: '16px', borderRadius: '8px', overflow: 'hidden', border: '0.5px solid rgba(201,168,76,0.2)' }}>
-                <div id="qr-reader" ref={scannerDivRef} style={{ width: '100%' }} />
-              </div>
-            )}
-
-            {/* Scan result */}
-            {scanResult && (
-              scanResult.ok ? (
-                <div style={{ marginBottom: '16px', padding: '20px', borderRadius: '8px', background: scanResult.alreadyIn ? 'rgba(201,168,76,0.08)' : 'rgba(72,187,120,0.1)', border: `0.5px solid rgba(${scanResult.alreadyIn ? '201,168,76' : '72,187,120'},0.35)` }}>
-                  <div style={{ ...S, fontSize: '18px', color: scanResult.alreadyIn ? '#C9A84C' : 'rgba(72,187,120,0.9)', marginBottom: '8px' }}>
-                    {scanResult.alreadyIn ? '⚠ Ya ingresó antes' : '✓ Acceso permitido'}
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color: '#F5F0E8', marginBottom: '6px' }}>
-                    {scanResult.attendee.first_name} {scanResult.attendee.last_name}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    <span style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.5)' }}>{scanResult.attendee.email}</span>
-                    {scanResult.attendee.country && (
-                      <span style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)' }}>{scanResult.attendee.country}</span>
-                    )}
-                    {scanResult.attendee.instagram && (
-                      <span style={{ ...S, fontSize: '12px', color: 'rgba(201,168,76,0.6)' }}>@{scanResult.attendee.instagram.replace('@', '')}</span>
-                    )}
-                    {scanResult.attendee.dni && (
-                      <span style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.35)' }}>DNI: {scanResult.attendee.dni}</span>
-                    )}
-                    <span style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.3)', marginTop: '4px' }}>
-                      Status: {scanResult.attendee.status}
-                      {scanResult.attendee.checkin_at && ` · Ingresó: ${new Date(scanResult.attendee.checkin_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ marginBottom: '16px', padding: '20px', borderRadius: '8px', background: 'rgba(252,129,74,0.08)', border: '0.5px solid rgba(252,129,74,0.3)' }}>
-                  <div style={{ ...S, fontSize: '18px', color: 'rgba(252,129,74,0.9)', marginBottom: '4px' }}>✗ Acceso denegado</div>
-                  <div style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.5)' }}>{ERROR_MESSAGES[scanResult.reason]}</div>
-                </div>
-              )
-            )}
-
-            {/* Stats bar */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-              {[
-                { label: 'Total', value: attendees.length, color: 'rgba(245,240,232,0.6)' },
-                { label: 'Ingresaron', value: checkedIn, color: 'rgba(72,187,120,0.8)' },
-                { label: 'Pendientes', value: attendees.length - checkedIn, color: 'rgba(201,168,76,0.7)' },
-              ].map(({ label, value, color }) => (
-                <div key={label} style={{ flex: 1, background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.08)', borderRadius: '6px', padding: '10px 12px', textAlign: 'center' }}>
-                  <p style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color, margin: '0 0 2px 0' }}>{value}</p>
-                  <p style={{ ...S, fontSize: '9px', letterSpacing: '0.12em', color: 'rgba(245,240,232,0.3)', textTransform: 'uppercase', margin: 0 }}>{label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Attendee list */}
-            {loading ? (
-              <div style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.3)', textAlign: 'center', padding: '32px' }}>Cargando...</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {filtered.map((a) => {
-                  const checked = !!a.checkin_at
-                  const isLoading = checkinLoading === a.id
-                  return (
-                    <div key={a.id} style={{
-                      background: checked ? 'rgba(72,187,120,0.06)' : '#0F0F1A',
-                      border: `0.5px solid rgba(${checked ? '72,187,120' : '201,168,76'},${checked ? '0.2' : '0.08'})`,
-                      borderRadius: '8px', padding: '14px 16px',
-                      display: 'flex', alignItems: 'center', gap: '12px',
-                      transition: 'all 300ms',
-                    }}>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: checked ? 'rgba(72,187,120,0.15)' : 'rgba(201,168,76,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span style={{ fontFamily: 'var(--font-cormorant)', fontSize: '14px', color: checked ? 'rgba(72,187,120,0.8)' : 'rgba(201,168,76,0.6)' }}>
-                          {checked ? '✓' : `${a.first_name[0]}${a.last_name[0] ?? ''}`}
-                        </span>
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ ...S, fontSize: '14px', color: checked ? 'rgba(72,187,120,0.9)' : '#F5F0E8', margin: '0 0 2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {a.first_name} {a.last_name}
-                        </p>
-                        <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.35)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {a.country ?? a.email}
-                          {a.status === 'vip' && <span style={{ marginLeft: '8px', color: '#C9A84C' }}>VIP</span>}
-                          {a.checkin_at && <span style={{ marginLeft: '8px', color: 'rgba(72,187,120,0.6)' }}>{new Date(a.checkin_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>}
-                        </p>
-                      </div>
-                      <button onClick={() => checked ? undoEntry(a.id) : markEntry(a.id)} disabled={isLoading}
-                        style={{
-                          ...S, fontSize: '10px', letterSpacing: '0.08em', padding: '8px 14px', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap',
-                          background: checked ? 'transparent' : 'rgba(72,187,120,0.1)',
-                          border: `0.5px solid rgba(${checked ? '245,240,232' : '72,187,120'},${checked ? '0.15' : '0.35'})`,
-                          color: checked ? 'rgba(245,240,232,0.3)' : 'rgba(72,187,120,0.9)',
-                          opacity: isLoading ? 0.5 : 1,
-                        }}>
-                        {isLoading ? '...' : checked ? 'DESHACER' : 'INGRESO'}
-                      </button>
-                    </div>
-                  )
-                })}
-                {filtered.length === 0 && (
-                  <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.25)', textAlign: 'center', padding: '32px' }}>
-                    {query ? 'Sin resultados.' : 'No hay confirmados para este evento.'}
-                  </p>
-                )}
-              </div>
-            )}
-          </>
-        )}
+        ))}
       </div>
+
+      {/* Two column layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+
+        {/* Left — Feed */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+            <h2 style={{ ...S, fontSize: '11px', letterSpacing: '0.16em', color: 'rgba(245,240,232,0.6)', margin: 0 }}>ACTIVIDAD EN VIVO</h2>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', animation: 'pulse-dot 2s ease-in-out infinite' }} />
+          </div>
+
+          <div style={{ maxHeight: '680px', overflowY: 'auto' }}>
+            {!eventId && (
+              <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.25)', padding: '20px 0' }}>
+                Seleccioná un evento para ver la actividad.
+              </p>
+            )}
+
+            {recentFeed.map((item) => (
+              <CheckinCard key={item.id} item={item} collapsed={false} />
+            ))}
+
+            {oldFeed.length > 0 && (
+              <button
+                onClick={() => setCollapsedBefore(!collapsedBefore)}
+                style={{ ...S, fontSize: '12px', color: 'rgba(245,240,232,0.4)', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.1)', borderRadius: '4px', padding: '8px 14px', cursor: 'pointer', marginBottom: '8px', width: '100%' }}
+              >
+                {collapsedBefore
+                  ? `📁 ${oldFeed.length} ingresos anteriores`
+                  : `▲ Ocultar anteriores (${oldFeed.length})`}
+              </button>
+            )}
+
+            {!collapsedBefore && oldFeed.map((item) => (
+              <CheckinCard key={item.id} item={item} collapsed={false} />
+            ))}
+
+            {eventId && feed.length === 0 && (
+              <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.2)', padding: '20px 0' }}>
+                Sin actividad aún.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Right — Scanners */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ ...S, fontSize: '11px', letterSpacing: '0.16em', color: 'rgba(245,240,232,0.6)', margin: 0 }}>SCANNERES</h2>
+            <button
+              onClick={() => setShowModal(true)}
+              style={{ ...S, fontSize: '10px', letterSpacing: '0.1em', padding: '8px 14px', background: 'rgba(201,168,76,0.08)', border: '0.5px solid rgba(201,168,76,0.3)', borderRadius: '4px', color: GOLD, cursor: 'pointer' }}
+            >
+              + AUTORIZAR
+            </button>
+          </div>
+
+          <div style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '8px', overflow: 'hidden' }}>
+            {scannersLoading ? (
+              <p style={{ ...S, fontSize: '13px', color: 'rgba(245,240,232,0.3)', textAlign: 'center', padding: '32px' }}>Cargando...</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'rgba(201,168,76,0.03)' }}>
+                    {['Nombre', 'Estado', 'Último scan', 'Total', ''].map((h) => (
+                      <th key={h} style={{ ...S, padding: '10px 12px', textAlign: 'left', fontSize: '9px', letterSpacing: '0.1em', color: 'rgba(245,240,232,0.3)', fontWeight: 300 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {scanners.map((sc) => {
+                    const active = isActive(sc.last_scan_at) && sc.active
+                    return (
+                      <tr key={sc.id} style={{ borderTop: '0.5px solid rgba(201,168,76,0.06)' }}>
+                        <td style={{ padding: '12px' }}>
+                          <p style={{ ...S, fontSize: '13px', color: '#F5F0E8', margin: '0 0 2px' }}>{sc.name}</p>
+                          <p style={{ ...S, fontSize: '11px', color: 'rgba(245,240,232,0.35)', margin: 0 }}>{sc.email}</p>
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: active ? '#22c55e' : 'rgba(245,240,232,0.2)', animation: active ? 'pulse-dot 2s ease-in-out infinite' : 'none' }} />
+                            <span style={{ ...S, fontSize: '10px', color: active ? 'rgba(34,197,94,0.8)' : 'rgba(245,240,232,0.3)' }}>
+                              {!sc.active ? 'INACT.' : active ? 'ACTIVO' : 'INACTIVO'}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ ...S, padding: '12px', fontSize: '11px', color: 'rgba(245,240,232,0.35)' }}>
+                          {sc.last_scan_at ? new Date(sc.last_scan_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                        <td style={{ ...S, padding: '12px', fontSize: '13px', color: 'rgba(245,240,232,0.5)' }}>
+                          {sc.scans_count}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              onClick={() => toggleScanner(sc)}
+                              style={{ ...S, fontSize: '9px', padding: '4px 10px', background: sc.active ? 'rgba(239,68,68,0.08)' : 'rgba(34,197,94,0.08)', border: `0.5px solid rgba(${sc.active ? '239,68,68' : '34,197,94'},0.25)`, borderRadius: '3px', color: sc.active ? 'rgba(239,68,68,0.8)' : 'rgba(34,197,94,0.8)', cursor: 'pointer' }}
+                            >
+                              {sc.active ? 'Desact.' : 'Activar'}
+                            </button>
+                            <button
+                              onClick={() => deleteScanner(sc.id)}
+                              style={{ ...S, fontSize: '9px', padding: '4px 8px', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.1)', borderRadius: '3px', color: 'rgba(245,240,232,0.3)', cursor: 'pointer' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {scanners.length === 0 && (
+                    <tr><td colSpan={5} style={{ ...S, padding: '32px', textAlign: 'center', fontSize: '13px', color: 'rgba(245,240,232,0.2)' }}>Sin scanneres autorizados.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal: Autorizar scanner */}
+      {showModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, padding: '20px' }}>
+          <div style={{ background: '#0F0F1A', border: '0.5px solid rgba(201,168,76,0.25)', borderRadius: '12px', padding: '32px', width: '100%', maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontFamily: 'var(--font-cormorant)', fontWeight: 300, fontSize: '22px', color: '#F5F0E8', margin: 0 }}>Autorizar Scanner</h3>
+              <button onClick={() => setShowModal(false)} style={{ background: 'transparent', border: 'none', color: 'rgba(245,240,232,0.4)', cursor: 'pointer', fontSize: '20px' }}>×</button>
+            </div>
+            <div>
+              <label style={{ ...S, fontSize: '10px', color: 'rgba(201,168,76,0.6)', letterSpacing: '0.1em', display: 'block', marginBottom: '4px' }}>NOMBRE</label>
+              <input value={modalForm.name} onChange={(e) => setModalForm({ ...modalForm, name: e.target.value })} placeholder="Nombre del scanner" style={inputSt} />
+            </div>
+            <div>
+              <label style={{ ...S, fontSize: '10px', color: 'rgba(201,168,76,0.6)', letterSpacing: '0.1em', display: 'block', marginBottom: '4px' }}>EMAIL</label>
+              <input type="email" value={modalForm.email} onChange={(e) => setModalForm({ ...modalForm, email: e.target.value })} placeholder="email@ejemplo.com" style={inputSt} />
+            </div>
+            <div>
+              <label style={{ ...S, fontSize: '10px', color: 'rgba(201,168,76,0.6)', letterSpacing: '0.1em', display: 'block', marginBottom: '4px' }}>EVENTO ASIGNADO</label>
+              <select value={modalForm.event_id} onChange={(e) => setModalForm({ ...modalForm, event_id: e.target.value })} style={{ ...inputSt, colorScheme: 'light' }}>
+                <option value="">Sin evento específico</option>
+                {events.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button onClick={() => setShowModal(false)} style={{ ...S, fontSize: '10px', padding: '9px 16px', background: 'transparent', border: '0.5px solid rgba(245,240,232,0.1)', borderRadius: '4px', color: 'rgba(245,240,232,0.4)', cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={saveScanner} disabled={modalSaving || !modalForm.name || !modalForm.email} style={{ ...S, fontSize: '10px', letterSpacing: '0.1em', padding: '9px 20px', background: 'rgba(201,168,76,0.1)', border: '0.5px solid rgba(201,168,76,0.35)', borderRadius: '4px', color: GOLD, cursor: 'pointer', opacity: modalSaving || !modalForm.name || !modalForm.email ? 0.5 : 1 }}>
+                {modalSaving ? 'Guardando...' : 'AUTORIZAR'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

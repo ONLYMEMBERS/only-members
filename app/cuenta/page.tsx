@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import { countries } from '@/lib/countries'
 import { Session } from '@supabase/supabase-js'
@@ -76,12 +77,17 @@ function LoginSection({ onSuccess, emailPrefill }: { onSuccess: () => void; emai
   const [email, setEmail] = useState(emailPrefill ?? '')
   const [password, setPassword] = useState('')
   const [showPwd, setShowPwd] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState('')
   const [resetEmail, setResetEmail] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
   const [resetSent, setResetSent] = useState(false)
   const [resetError, setResetError] = useState('')
+
+  useEffect(() => {
+    try { localStorage.setItem('om-remember-me', String(rememberMe)) } catch {}
+  }, [rememberMe])
 
   useEffect(() => {
     if (emailPrefill) setEmail(emailPrefill)
@@ -163,6 +169,23 @@ function LoginSection({ onSuccess, emailPrefill }: { onSuccess: () => void; emai
         </div>
       </div>
       {loginError && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{loginError}</p>}
+      <label style={{
+        display: 'flex', gap: '10px', alignItems: 'center',
+        cursor: 'pointer', marginBottom: '4px', marginTop: '4px',
+      }}>
+        <input
+          type="checkbox"
+          checked={rememberMe}
+          onChange={(e) => setRememberMe(e.target.checked)}
+          style={{ accentColor: GOLD, width: '14px', height: '14px', cursor: 'pointer' }}
+        />
+        <span style={{
+          ...S, fontSize: '12px',
+          color: 'rgba(245,240,232,0.6)', userSelect: 'none',
+        }}>
+          Mantener sesión iniciada
+        </span>
+      </label>
       <button onClick={handleLogin} disabled={loginLoading} style={{ width: '100%', padding: '13px', background: 'rgba(201,168,76,0.1)', border: `0.5px solid rgba(201,168,76,0.4)`, borderRadius: '8px', color: GOLD, ...S, fontSize: '11px', letterSpacing: '0.14em', cursor: loginLoading ? 'wait' : 'pointer', opacity: loginLoading ? 0.6 : 1 }}>
         {loginLoading ? 'INGRESANDO...' : 'INGRESAR'}
       </button>
@@ -174,7 +197,7 @@ function LoginSection({ onSuccess, emailPrefill }: { onSuccess: () => void; emai
 }
 
 function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; onSwitchToLogin: (email: string) => void }) {
-  const [step, setStep] = useState<'email' | 'found' | 'notfound'>('email')
+  const [step, setStep] = useState<'email' | 'found' | 'notfound' | 'confirm_pending'>('email')
   const [emailInput, setEmailInput] = useState('')
   const [checking, setChecking] = useState(false)
   const [firstName, setFirstName] = useState('')
@@ -217,6 +240,10 @@ function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; 
       const res = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: emailInput.trim(), password }) })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Error al crear la cuenta'); return }
+      if (data.needsConfirmation) {
+        setStep('confirm_pending')
+        return
+      }
       const supabase = createClient()
       const { error: signInError } = await supabase.auth.signInWithPassword({ email: emailInput.trim(), password })
       if (signInError) { setError(signInError.message); return }
@@ -240,6 +267,8 @@ function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; 
     }
   }
 
+  const [honeypotValue, setHoneypotValue] = useState('')
+
   async function handleRegSubmit() {
     setError('')
     if (!regForm.firstName || !regForm.lastName || !regForm.country || !regForm.dni || !regForm.gender || !regForm.eventId) {
@@ -252,6 +281,7 @@ function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          website: honeypotValue,
           event_id: regForm.eventId,
           first_name: regForm.firstName,
           last_name: regForm.lastName,
@@ -277,6 +307,35 @@ function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; 
 
   const inputStyle: React.CSSProperties = { width: '100%', padding: '12px 16px', background: 'transparent', border: '0.5px solid rgba(201,168,76,0.25)', borderRadius: '8px', color: '#F5F0E8', caretColor: GOLD, ...S, fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
   const labelStyle: React.CSSProperties = { ...S, fontSize: '10px', letterSpacing: '0.1em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase' as const, display: 'block', marginBottom: '4px' }
+
+  if (step === 'confirm_pending') {
+    return (
+      <div style={{ textAlign: 'center', padding: '20px 0' }}>
+        <div style={{ fontSize: '48px', marginBottom: '16px' }}>✉️</div>
+        <h2 style={{
+          fontFamily: 'var(--font-cormorant)', fontWeight: 300,
+          fontSize: '26px', color: '#F5F0E8', marginBottom: '8px',
+        }}>
+          Revisá tu email.
+        </h2>
+        <p style={{
+          ...inputStyle, border: 'none', padding: 0, background: 'transparent',
+          fontSize: '13px', color: 'rgba(245,240,232,0.6)',
+          marginBottom: '24px', lineHeight: 1.7, textAlign: 'center',
+        } as React.CSSProperties}>
+          Te enviamos un link de confirmación a<br />
+          <strong style={{ color: '#F5F0E8' }}>{emailInput}</strong><br />
+          Hacé click en el link para activar tu cuenta.
+        </p>
+        <p style={{
+          ...S, fontSize: '11px',
+          color: 'rgba(245,240,232,0.3)',
+        }}>
+          El link expira en 24 horas.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -395,6 +454,21 @@ function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; 
               )}
             </div>
 
+            {/* Honeypot anti-bot — invisible to humans */}
+            <input
+              name="website"
+              type="text"
+              value={honeypotValue}
+              onChange={(e) => setHoneypotValue(e.target.value)}
+              style={{
+                position: 'absolute', left: '-9999px', top: '-9999px',
+                width: '1px', height: '1px', opacity: 0, pointerEvents: 'none',
+              }}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+            />
+
             {error && <p style={{ ...S, fontSize: '12px', color: 'rgba(229,115,115,0.9)' }}>{error}</p>}
 
             <button
@@ -443,8 +517,12 @@ function SignupSection({ onSuccess, onSwitchToLogin }: { onSuccess: () => void; 
   )
 }
 
-function AuthPanel() {
-  const [tab, setTab] = useState<'login' | 'signup'>('login')
+function AuthPanelInner() {
+  const searchParams = useSearchParams()
+  const defaultTab = (searchParams.get('tab') as 'login' | 'signup') ?? 'login'
+  const justConfirmed = searchParams.get('confirmed') === 'true'
+
+  const [tab, setTab] = useState<'login' | 'signup'>(defaultTab)
   const [loginEmailPrefill, setLoginEmailPrefill] = useState('')
   const handleSuccess = () => { /* session subscription fires automatically */ }
 
@@ -464,6 +542,18 @@ function AuthPanel() {
         <p style={{ ...S, fontSize: '9px', letterSpacing: '0.2em', color: 'rgba(201,168,76,0.5)', textTransform: 'uppercase', marginBottom: '20px', textAlign: 'center', marginTop: '8px' }}>
           ONLY MEMBERS
         </p>
+
+        {justConfirmed && (
+          <div style={{
+            padding: '10px 14px', marginBottom: '16px',
+            background: 'rgba(72,187,120,0.08)',
+            border: '0.5px solid rgba(72,187,120,0.25)',
+            borderRadius: '6px',
+            ...S, fontSize: '12px', color: 'rgba(72,187,120,0.9)',
+          }}>
+            ✓ Email confirmado. Ya podés iniciar sesión.
+          </div>
+        )}
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '28px' }}>
@@ -494,6 +584,14 @@ function AuthPanel() {
         }
       </div>
     </div>
+  )
+}
+
+function AuthPanel() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <AuthPanelInner />
+    </Suspense>
   )
 }
 

@@ -79,6 +79,18 @@ body {
   50% { opacity: 0.09; }
 }
 
+select option {
+  background-color: #ffffff !important;
+  color: #111111 !important;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+}
+
+select:focus option:checked {
+  background-color: #f5f0e8 !important;
+  color: #111111 !important;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

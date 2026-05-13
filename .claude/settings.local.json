@@ -22,7 +22,12 @@
       "Bash(git pull *)",
       "Bash(git stash *)",
       "Bash(grep -v \"^$\")",
-      "Bash(node -e \"const pkg = require\\('./node_modules/@supabase/supabase-js/package.json'\\); console.log\\(pkg.version\\)\")"
+      "Bash(node -e \"const pkg = require\\('./node_modules/@supabase/supabase-js/package.json'\\); console.log\\(pkg.version\\)\")",
+      "Bash(node -e \"require\\('xlsx'\\); require\\('qrcode'\\); console.log\\('OK'\\)\")",
+      "Bash(node -e \"const re = require\\('@react-email/render'\\); console.log\\(Object.keys\\(re\\)\\)\")",
+      "Bash(node -e \"const {render} = require\\('@react-email/render'\\); console.log\\(typeof render\\)\")",
+      "Bash(node -e \"require\\('qrcode'\\)\")",
+      "Bash(node -e \"require\\('@react-email/render'\\)\")"
     ]
   }
 }
