@@ -27,7 +27,10 @@
       "Bash(node -e \"const re = require\\('@react-email/render'\\); console.log\\(Object.keys\\(re\\)\\)\")",
       "Bash(node -e \"const {render} = require\\('@react-email/render'\\); console.log\\(typeof render\\)\")",
       "Bash(node -e \"require\\('qrcode'\\)\")",
-      "Bash(node -e \"require\\('@react-email/render'\\)\")"
+      "Bash(node -e \"require\\('@react-email/render'\\)\")",
+      "Bash(npm list *)",
+      "Bash(node *)",
+      "Bash(grep -E \"Type error|Failed|✓ Compiled|Route \\\\\\\\\\(app\\\\\\\\\\)\")"
     ]
   }
 }

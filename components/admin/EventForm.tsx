@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 
-const TABS = ['Básico', 'Lugar', 'Imágenes', 'Dress Code', 'Speakers', 'Partners', 'Acceso', 'Visibilidad', 'OG / SEO', 'Notas', 'Pago MP']
+const TABS = ['Básico', 'Lugar', 'Dress Code', 'Speakers', 'Partners', 'Acceso', 'Visibilidad', 'OG / SEO', 'Notas', 'Pago MP']
 const TIMEZONES = [
   'America/Buenos_Aires', 'America/Santiago', 'America/Lima', 'America/Bogota',
   'America/Mexico_City', 'America/New_York', 'America/Los_Angeles',
@@ -78,7 +78,6 @@ export function EventForm({ eventId }: { eventId?: string }) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [paymentAccounts, setPaymentAccounts] = useState<{ id: string; name: string; is_main_account: boolean }[]>([])
   const [uploading, setUploading] = useState<string | null>(null)
-  const [uploadStatus, setUploadStatus] = useState<Record<string, { state: 'uploading' | 'success' | 'error'; fileName: string }>>({})
 
   const router = useRouter()
   const supabase = createClient()
@@ -128,19 +127,6 @@ export function EventForm({ eventId }: { eventId?: string }) {
     return json.url as string
   }
 
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, field: 'hero_image' | 'cover_image') {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploadStatus((p) => ({ ...p, [field]: { state: 'uploading', fileName: file.name } }))
-    try {
-      const url = await uploadImage(file, eventId ?? 'new')
-      set(field)(url)
-      setUploadStatus((p) => ({ ...p, [field]: { state: 'success', fileName: file.name } }))
-    } catch (err) {
-      console.error('upload error:', err)
-      setUploadStatus((p) => ({ ...p, [field]: { state: 'error', fileName: file.name } }))
-    }
-  }
 
   async function handleDressCodeImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []).slice(0, 6 - form.dress_code_images.length)
@@ -279,68 +265,6 @@ export function EventForm({ eventId }: { eventId?: string }) {
         </div>
       )
       case 2: return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '36px' }}>
-          {(['hero_image', 'cover_image'] as const).map((field) => {
-            const isHero = field === 'hero_image'
-            const status = uploadStatus[field]
-            const hasImage = !!form[field]
-            return (
-              <div key={field}>
-                <label style={labelStyle}>{isHero ? 'Hero (16:9)' : 'Portada (4:5)'}</label>
-
-                {/* Preview */}
-                {hasImage && (
-                  <div style={{ marginBottom: '12px' }}>
-                    <img
-                      src={form[field]}
-                      alt=""
-                      style={{
-                        display: 'block',
-                        width: isHero ? '100%' : '200px',
-                        aspectRatio: isHero ? '16/9' : '4/5',
-                        objectFit: 'cover',
-                        borderRadius: '8px',
-                        border: '0.5px solid rgba(201,168,76,0.2)',
-                        marginBottom: '10px',
-                      }}
-                    />
-                    <label style={{ ...btnStyle, display: 'inline-block', cursor: 'pointer', fontSize: '9px', padding: '6px 12px', opacity: status?.state === 'uploading' ? 0.5 : 1 }}>
-                      Reemplazar
-                      <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e, field)} />
-                    </label>
-                  </div>
-                )}
-
-                {/* Upload button (no image yet) */}
-                {!hasImage && (
-                  <label style={{ ...btnStyle, display: 'inline-block', cursor: 'pointer', opacity: status?.state === 'uploading' ? 0.5 : 1 }}>
-                    {status?.state === 'uploading' ? 'Subiendo...' : '+ Subir imagen'}
-                    <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style={{ display: 'none' }} onChange={(e) => handleImageUpload(e, field)} />
-                  </label>
-                )}
-
-                {/* Status feedback */}
-                {status && (
-                  <p style={{
-                    fontFamily: 'var(--font-inter)', fontWeight: 300, fontSize: '11px', marginTop: '8px',
-                    color: status.state === 'success' ? '#C9A84C' : status.state === 'error' ? 'rgba(229,62,62,0.85)' : 'rgba(245,240,232,0.45)',
-                  }}>
-                    {status.state === 'uploading' && `Subiendo ${status.fileName}...`}
-                    {status.state === 'success' && `✓ ${status.fileName}`}
-                    {status.state === 'error' && '✗ Error al subir'}
-                  </p>
-                )}
-
-                {/* Editable URL */}
-                {hasImage && (
-                  <input style={{ ...inputStyle, marginTop: '8px', fontSize: '11px', color: 'rgba(245,240,232,0.35)' }} value={form[field]} onChange={(e) => set(field)(e.target.value)} placeholder="URL de imagen" />
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )
-      case 3: return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <Field label="Dress code (texto)">
             <textarea style={textareaStyle} value={form.dress_code} onChange={(e) => set('dress_code')(e.target.value)} />
@@ -367,7 +291,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           </div>
         </div>
       )
-      case 4: return (
+      case 3: return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {speakers.map((sp, i) => (
             <div key={sp.id} style={{ background: 'rgba(201,168,76,0.03)', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '6px', padding: '16px' }}>
@@ -394,7 +318,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <button style={btnStyle} onClick={addSpeaker}>+ Agregar speaker</button>
         </div>
       )
-      case 5: return (
+      case 4: return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {partners.map((pt, i) => (
             <div key={pt.id} style={{ background: 'rgba(201,168,76,0.03)', border: '0.5px solid rgba(201,168,76,0.12)', borderRadius: '6px', padding: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', alignItems: 'end' }}>
@@ -406,7 +330,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <button style={btnStyle} onClick={addPartner}>+ Agregar partner</button>
         </div>
       )
-      case 6: return (
+      case 5: return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <Row>
             <Field label="Cupo máximo"><input style={inputStyle} type="number" value={form.capacity} onChange={(e) => set('capacity')(e.target.value)} /></Field>
@@ -423,7 +347,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           <Field label="Expiración del link"><input style={inputStyle} type="datetime-local" value={form.purchase_link_expires_at} onChange={(e) => set('purchase_link_expires_at')(e.target.value)} /></Field>
         </div>
       )
-      case 7: return (
+      case 6: return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <Row>
             <Field label="Estado">
@@ -449,7 +373,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
           </Field>
         </div>
       )
-      case 8: return (
+      case 7: return (
         <div style={{ display: 'flex', gap: '32px' }}>
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <Field label="OG Title"><input style={inputStyle} value={form.og_title} onChange={(e) => set('og_title')(e.target.value)} /></Field>
@@ -469,12 +393,12 @@ export function EventForm({ eventId }: { eventId?: string }) {
           </div>
         </div>
       )
-      case 9: return (
+      case 8: return (
         <Field label="Notas internas (nunca visible al público)">
           <textarea style={{ ...textareaStyle, minHeight: '200px' }} value={form.internal_notes} onChange={(e) => set('internal_notes')(e.target.value)} />
         </Field>
       )
-      case 10: return (
+      case 9: return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
             <input type="checkbox" checked={form.payments_enabled} onChange={(e) => set('payments_enabled')(e.target.checked)}

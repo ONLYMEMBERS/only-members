@@ -1,0 +1,15 @@
+{
+  "name": "Only Members",
+  "short_name": "Only Members",
+  "description": "Experiencias privadas para personas extraordinarias",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0F",
+  "theme_color": "#0A0A0F",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable any" }
+  ],
+  "categories": ["lifestyle", "entertainment"],
+  "lang": "es"
+}

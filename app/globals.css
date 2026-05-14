@@ -97,14 +97,13 @@ select:focus option:checked {
   }
 }
 
-/* Admin responsive */
+/* Admin table responsive */
 .admin-table-scroll {
+  width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-@media (max-width: 768px) {
-  .admin-table-scroll table {
-    min-width: 480px;
-  }
+.admin-table-scroll table {
+  min-width: 600px;
 }
